@@ -8,6 +8,15 @@
 
 ## 🆕 What's New (February 2026)
 
+### Bank Account Reconciliation & Balance Tracking ⚖️
+- 🏦 **Multi-Account Management:** Create and manage multiple bank accounts with opening balances
+- ⚖️ **Balance Reconciliation:** Compare app balance vs. bank statement with variance detection
+- 📊 **Balance History Timeline:** Visualize balance trends over time with interactive charts
+- 🔄 **Duplicate Detection:** Find and manage potential duplicate transactions
+- 📋 **Reconciliation Reports:** Generate comprehensive reports with export to CSV
+- ✅ **Transaction Reconciliation:** Mark transactions as reconciled for better tracking
+- 💡 **Smart Suggestions:** Get recommendations for missing transactions
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
@@ -80,6 +89,18 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🏦 **Account Management & Reconciliation**
+- Create multiple bank accounts (Checking, Savings, Credit Card, etc.)
+- Set opening balances and track current balance
+- Multi-currency support (INR, USD, EUR, GBP, JPY)
+- Monthly balance reconciliation against bank statements
+- Variance detection and analysis
+- Duplicate transaction detection
+- Balance history timeline visualization
+- Comprehensive reconciliation reports
+
+📘 **[Full Reconciliation Guide](docs/RECONCILIATION.md)**
+
 ---
 
 ## 📁 Project Structure
@@ -99,14 +120,18 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── reconciliation.py  # Balance reconciliation & variance detection
 │   └── ui/
-│       ├── upload_page.py      # File upload interface
-│       ├── dashboard_page.py   # KPIs and charts
-│       ├── transactions_page.py # Transaction table with editing
-│       └── budgets_page.py     # Budget configuration
+│       ├── upload_page.py         # File upload interface
+│       ├── dashboard_page.py      # KPIs and charts
+│       ├── transactions_page.py   # Transaction table with editing
+│       ├── budgets_page.py        # Budget configuration
+│       ├── accounts_page.py       # Account management
+│       └── reconciliation_page.py # Reconciliation workflow
 └── tests/
     ├── test_deduplication.py
     ├── test_parsers.py
+    ├── test_reconciliation.py
     └── fixtures/
         └── sample_statement.csv
 ```
@@ -226,6 +251,16 @@ pytest tests/ -v
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 5. Manage Accounts & Reconcile
+1. Navigate to **🏦 Accounts**
+2. Add your bank accounts with opening balances
+3. Go to **⚖️ Reconciliation**
+4. Compare app balance with bank statements
+5. Detect duplicates and resolve variances
+6. Mark transactions as reconciled
+
+For detailed reconciliation instructions, see [Reconciliation Guide](docs/RECONCILIATION.md)
 
 ---
 
