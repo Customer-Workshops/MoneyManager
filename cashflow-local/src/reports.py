@@ -295,9 +295,8 @@ class ReportGenerator:
             ]
             
             category_summary = tax_df.groupby('category').agg({
-                'amount': 'sum',
-                'category': 'count'
-            }).reset_index(drop=False)
+                'amount': ['sum', 'count']
+            }).reset_index()
             category_summary.columns = ['Category', 'Total', 'Count']
             category_summary = category_summary.sort_values('Total', ascending=False)
             
