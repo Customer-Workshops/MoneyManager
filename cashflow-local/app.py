@@ -16,7 +16,7 @@ from src.ui.upload_page import render_upload_page
 from src.ui.dashboard_page import render_dashboard_page
 from src.ui.transactions_page import render_transactions_page
 from src.ui.budgets_page import render_budgets_page
-from src.ui.accounts_page import render_accounts_page
+from src.ui.reports_page import render_reports_page
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +59,7 @@ def render_sidebar():
         # Navigation
         page = st.radio(
             "Navigation",
-            options=["📊 Dashboard", "📤 Upload", "💳 Transactions", "🏦 Accounts", "💰 Budgets"],
+            options=["📊 Dashboard", "📤 Upload", "💳 Transactions", "💰 Budgets", "📄 Reports"],
             label_visibility="collapsed"
         )
         
@@ -78,7 +78,7 @@ def render_sidebar():
         - 🤖 Smart categorization
         - 📊 Visual analytics
         - 💰 Budget tracking
-        - 🔔 Bill reminders
+        - 📄 PDF/Excel Reports
         """)
         
         st.markdown("---")
@@ -106,8 +106,8 @@ def main():
         render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
-    elif selected_page == "🔔 Bills":
-        render_bills_page()
+    elif selected_page == "📄 Reports":
+        render_reports_page()
 
 
 if __name__ == "__main__":
