@@ -603,6 +603,119 @@ class DatabaseManager:
             query += " AND transaction_date >= ?"
             params.append(opening_date)
         
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute(query, params).fetchone()
+                net_change = result[0] if result and result[0] is not None else 0
+                return float(opening_balance) + float(net_change)
+        except Exception as e:
+            logger.error(f"Failed to calculate balance: {e}")
+            return 0.0
+
+    def create_account(self, name: str, type: str, balance: float = 0.0, currency: str = 'USD') -> Optional[int]:
+        """
+        Create a new account.
+        
+        Args:
+            name: Account name
+            type: Account type (Checking, Savings, etc.)
+            balance: Initial opening balance
+            currency: Currency code
+            
+        Returns:
+            Account ID if successful, None otherwise
+        """
+        try:
+            query = """
+                INSERT INTO accounts (name, type, opening_balance, currency, is_active)
+                VALUES (?, ?, ?, ?, ?)
+                RETURNING id
+            """
+            with self.get_connection() as conn:
+                result = conn.execute(query, [name, type, balance, currency, True]).fetchone()
+                if result:
+                    logger.info(f"Created account: {name}")
+                    return result[0]
+                return None
+        except Exception as e:
+            logger.error(f"Failed to create account: {e}")
+            raise
+
+    def update_account(self, account_id: int, name: str, type: str, balance: float, currency: str) -> bool:
+        """
+        Update an existing account.
+        
+        Args:
+            account_id: ID of account to update
+            name: New name
+            type: New type
+            balance: New opening balance
+            currency: New currency
+            
+        Returns:
+            True if successful
+        """
+        try:
+            query = """
+                UPDATE accounts 
+                SET name = ?, type = ?, opening_balance = ?, currency = ?
+                WHERE id = ?
+            """
+            with self.get_connection() as conn:
+                conn.execute(query, [name, type, balance, currency, account_id])
+                logger.info(f"Updated account {account_id}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update account: {e}")
+            raise
+
+    def delete_account(self, account_id: int) -> bool:
+        """
+        Delete an account (soft delete or set transactions to NULL).
+        
+        Preserves transactions by setting their account_id to NULL.
+        
+        Args:
+            account_id: ID of account to delete
+            
+        Returns:
+            True if successful
+        """
+        try:
+            with self.get_connection() as conn:
+                # 1. Unlink transactions
+                conn.execute("UPDATE transactions SET account_id = NULL WHERE account_id = ?", [account_id])
+                
+                # 2. Delete account
+                conn.execute("DELETE FROM accounts WHERE id = ?", [account_id])
+                
+                logger.info(f"Deleted account {account_id} and unlinked transactions")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to delete account: {e}")
+            raise
+
+    def get_net_worth(self) -> float:
+        """
+        Calculate total net worth (sum of all account balances).
+        
+        Returns:
+            Total net worth
+        """
+        try:
+            accounts = self.get_all_accounts()
+            total = 0.0
+            for acc in accounts:
+                total += self.calculate_account_balance(acc['id'])
+            return total
+        except Exception as e:
+            logger.error(f"Failed to calculate net worth: {e}")
+            return 0.0
+        
+        if opening_date:
+            query += " AND transaction_date >= ?"
+            params.append(opening_date)
+        
         if as_of_date:
             query += " AND transaction_date <= ?"
             params.append(as_of_date)
