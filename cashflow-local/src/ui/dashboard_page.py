@@ -18,9 +18,12 @@ from src.ui.utils import get_type_icon
 logger = logging.getLogger(__name__)
 
 
-def get_kpis() -> Dict[str, Any]:
+def get_kpis(account_id: int = None) -> Dict[str, Any]:
     """
     Calculate key performance indicators.
+    
+    Args:
+        account_id: Optional account filter (None = All Accounts)
     
     Returns:
         Dictionary with KPI values
@@ -30,33 +33,46 @@ def get_kpis() -> Dict[str, Any]:
         today = datetime.now()
         start_of_month = today.replace(day=1)
         
+        # Build WHERE clause for account filter
+        account_filter = ""
+        params_balance = []
+        params_spend = [start_of_month]
+        params_income = [start_of_month]
+        
+        if account_id is not None:
+            account_filter = " AND account_id = ?"
+            params_balance = [account_id]
+            params_spend.append(account_id)
+            params_income.append(account_id)
+        
         # Total balance (latest transaction balance calculation)
-        balance_query = """
+        balance_query = f"""
             SELECT 
                 SUM(CASE WHEN type = 'Credit' THEN amount ELSE -amount END) as total_balance
             FROM transactions
+            WHERE 1=1 {account_filter}
         """
-        balance_result = db_manager.execute_query(balance_query)
+        balance_result = db_manager.execute_query(balance_query, tuple(params_balance) if params_balance else None)
         total_balance = balance_result[0][0] if balance_result and balance_result[0][0] else 0
         
         # Monthly spend (current month debits)
-        monthly_spend_query = """
+        monthly_spend_query = f"""
             SELECT SUM(amount)
             FROM transactions
             WHERE type = 'Debit' 
-            AND transaction_date >= ?
+            AND transaction_date >= ? {account_filter}
         """
-        spend_result = db_manager.execute_query(monthly_spend_query, (start_of_month,))
+        spend_result = db_manager.execute_query(monthly_spend_query, tuple(params_spend))
         monthly_spend = spend_result[0][0] if spend_result and spend_result[0][0] else 0
         
         # Monthly income (current month credits)
-        monthly_income_query = """
+        monthly_income_query = f"""
             SELECT SUM(amount)
             FROM transactions
             WHERE type = 'Credit' 
-            AND transaction_date >= ?
+            AND transaction_date >= ? {account_filter}
         """
-        income_result = db_manager.execute_query(monthly_income_query, (start_of_month,))
+        income_result = db_manager.execute_query(monthly_income_query, tuple(params_income))
         monthly_income = income_result[0][0] if income_result and income_result[0][0] else 0
         
         # Savings rate
@@ -453,6 +469,7 @@ def render_dashboard_page():
     Render the main dashboard page.
     
     Displays:
+    - Account selector
     - KPI metrics (Balance, Spend, Income, Savings Rate)
     - Line chart: Income vs Expenses (Trend Analysis)
     - Donut chart: Spending by Category
@@ -461,8 +478,28 @@ def render_dashboard_page():
     """
     st.header("📊 Financial Dashboard")
     
+    # Account filter selector
+    accounts = db_manager.get_all_accounts()
+    
+    if not accounts:
+        st.warning("⚠️ No accounts found. Please create an account in the 🏦 Accounts page first.")
+        return
+    
+    # Create account dropdown
+    account_options = {"All Accounts": None}
+    account_options.update({f"{acc['name']} ({acc['type']})": acc['id'] for acc in accounts})
+    
+    selected_account_name = st.selectbox(
+        "View",
+        options=list(account_options.keys()),
+        help="Select an account to view its transactions, or 'All Accounts' for consolidated view"
+    )
+    selected_account_id = account_options[selected_account_name]
+    
+    st.divider()
+    
     # KPIs
-    kpis = get_kpis()
+    kpis = get_kpis(selected_account_id)
     render_kpi_cards(kpis)
     
     st.divider()

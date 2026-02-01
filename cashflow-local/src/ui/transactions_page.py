@@ -30,7 +30,7 @@ def render_transactions_page():
     
     # Filters
     with st.expander("🔍 Filters", expanded=False):
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             # Date range filter
@@ -53,6 +53,17 @@ def render_transactions_page():
             )
         
         with col3:
+            # Account filter
+            accounts = db_manager.get_all_accounts()
+            account_options = ["All Accounts"] + [f"{acc['name']} ({acc['type']})" for acc in accounts]
+            account_mapping = {f"{acc['name']} ({acc['type']})": acc['id'] for acc in accounts}
+            selected_account = st.selectbox(
+                "Account",
+                options=account_options,
+                help="Filter by account"
+            )
+        
+        with col4:
             # Search
             search_query = st.text_input(
                 "Search Description",
@@ -62,25 +73,38 @@ def render_transactions_page():
     
     # Fetch transactions
     try:
-        query = "SELECT id, transaction_date, description, amount, type, category FROM transactions WHERE 1=1"
+        query = """
+            SELECT t.id, t.transaction_date, t.description, t.amount, t.type, t.category, 
+                   COALESCE(a.name, 'Unassigned') as account_name
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE 1=1
+        """
         params = []
         
         # Apply date filter
         if len(date_range) == 2:
-            query += " AND transaction_date >= ? AND transaction_date <= ?"
+            query += " AND t.transaction_date >= ? AND t.transaction_date <= ?"
             params.extend(date_range)
         
         # Apply category filter
         if selected_category != "All":
-            query += " AND category = ?"
+            query += " AND t.category = ?"
             params.append(selected_category)
+        
+        # Apply account filter
+        if selected_account != "All Accounts":
+            account_id = account_mapping.get(selected_account)
+            if account_id:
+                query += " AND t.account_id = ?"
+                params.append(account_id)
         
         # Apply search filter
         if search_query:
-            query += " AND LOWER(description) LIKE ?"
+            query += " AND LOWER(t.description) LIKE ?"
             params.append(f"%{search_query.lower()}%")
         
-        query += " ORDER BY transaction_date DESC LIMIT 500"
+        query += " ORDER BY t.transaction_date DESC LIMIT 500"
         
         results = db_manager.execute_query(query, tuple(params) if params else None)
         
@@ -91,7 +115,7 @@ def render_transactions_page():
         # Convert to DataFrame
         df = pd.DataFrame(
             results,
-            columns=['id', 'transaction_date', 'description', 'amount', 'type', 'category']
+            columns=['id', 'transaction_date', 'description', 'amount', 'type', 'category', 'account_name']
         )
         
         # Format for display
@@ -121,6 +145,7 @@ def render_transactions_page():
                 "description": st.column_config.TextColumn("Description", disabled=True, width="large"),
                 "amount": st.column_config.TextColumn("Amount", disabled=True),
                 "type": st.column_config.TextColumn("Type", disabled=True),
+                "account_name": st.column_config.TextColumn("Account", disabled=True),
                 "category": st.column_config.SelectboxColumn(
                     "Category",
                     options=all_categories,
