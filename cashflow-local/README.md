@@ -28,7 +28,12 @@ That's it! 🎉
 
 ### 📤 **Universal Statement Ingestion**
 - Drag-and-drop upload for **CSV** and **PDF** bank statements
-- Automatic column detection (works with most bank formats)
+- **Automatic column detection** (works with most bank formats)
+- **Enhanced format support:**
+  - 7+ date formats (DD/MM/YYYY, DD-MMM-YYYY, YYYY-MM-DD, etc.)
+  - Various amount formats (₹1,234.56, (500), 1234.56 Dr, etc.)
+  - Smart handling of currency symbols and separators
+- **Clear error messages** with actionable troubleshooting tips
 - Real-time processing with progress indicators
 
 ### 🔄 **Intelligent Deduplication**
@@ -106,21 +111,28 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
 
 ### CSV Files
 - **Required Columns:** Date, Description, Amount (or Debit/Credit)
-- **Supported Date Formats:** YYYY-MM-DD, MM/DD/YYYY, DD-MM-YYYY
+- **Supported Date Formats:** DD/MM/YYYY, DD-MM-YYYY, DD-MMM-YYYY, YYYY-MM-DD, and more
 - **Column Name Variations:** Automatically detects common headers like "Trans Date", "Posting Date", "Memo", etc.
+- **Amount Formats:** Handles comma-separated amounts, currency symbols (₹, $), accounting format, etc.
 
 **Example CSV:**
 ```csv
 Date,Description,Debit,Credit,Balance
-2026-01-15,STARBUCKS #1234,5.50,,1245.50
-2026-01-16,Salary Deposit,,3000.00,4245.50
-2026-01-17,AMAZON PURCHASE,125.99,,4119.51
+01/09/2025,STARBUCKS #1234,5.50,,1245.50
+02/09/2025,Salary Deposit,,3000.00,4245.50
+03/09/2025,AMAZON PURCHASE,125.99,,4119.51
 ```
 
 ### PDF Files
 - Bank statements with **tabular transaction data**
 - Works best with machine-generated PDFs (not scanned images)
-- Supports common formats from major banks
+- **Currently Tested:** Federal Bank
+- **Expected to Work:** Most Indian banks with standard tabular formats
+- **Supported Formats:** Multiple date formats, various amount representations
+
+**For detailed format support and troubleshooting, see:**
+- 📘 [Parser Documentation](docs/PARSER.md)
+- 🔧 [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 
 ---
 
@@ -205,6 +217,10 @@ pytest tests/ -v
 
 ## 🐛 Troubleshooting
 
+For detailed troubleshooting, see the **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**.
+
+**Quick Tips:**
+
 **Port 8501 Already in Use:**
 ```bash
 # Change port in docker-compose.yml
@@ -212,10 +228,12 @@ ports:
   - "8502:8501"  # Use 8502 instead
 ```
 
-**PDF Parsing Fails:**
+**PDF Parsing Issues:**
+- See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for detailed error messages and solutions
 - Ensure PDF is machine-generated (not scanned image)
 - Check if PDF has visible table structure
 - Try exporting as CSV from your bank instead
+- Enable DEBUG logging: `LOG_LEVEL=DEBUG` in `.env`
 
 **Duplicate Detection Not Working:**
 - Verify date formats are consistent across uploads
