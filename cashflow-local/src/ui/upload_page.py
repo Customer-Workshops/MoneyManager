@@ -43,6 +43,24 @@ def render_upload_page():
     - 📊 Instant statistics and validation
     """)
     
+    # Account selector
+    st.markdown("### Select Account")
+    accounts = db_manager.get_all_accounts()
+    
+    if not accounts:
+        st.warning("⚠️ No accounts found. Please create an account in the 🏦 Accounts page first.")
+        return
+    
+    account_options = {f"{acc['name']} ({acc['type']})": acc['id'] for acc in accounts}
+    selected_account_name = st.selectbox(
+        "Account",
+        options=list(account_options.keys()),
+        help="Select the account these transactions belong to"
+    )
+    selected_account_id = account_options[selected_account_name]
+    
+    st.divider()
+    
     # File uploader
     uploaded_files = st.file_uploader(
         "Choose bank statement files",
@@ -110,7 +128,7 @@ def render_upload_page():
                 
                 # Step 5: Insert with deduplication
                 progress_bar.progress(80, text="Inserting into database...")
-                stats = insert_transactions(df, file_hash, db_manager)
+                stats = insert_transactions(df, file_hash, db_manager, account_id=selected_account_id)
                 
                 # Clean up temp file
                 os.unlink(tmp_path)

@@ -71,17 +71,33 @@ class DatabaseManager:
         Create database schema if it doesn't exist.
         
         Schema Design:
-        1. transactions: Core fact table with hash-based deduplication
-        2. category_rules: Keyword-to-category mappings
-        3. budgets: Monthly spending limits per category
+        1. accounts: Financial accounts (bank, credit card, wallet, etc.)
+        2. transactions: Core fact table with hash-based deduplication
+        3. category_rules: Keyword-to-category mappings
+        4. budgets: Monthly spending limits per category
         
         Indexes:
         - idx_hash: O(1) duplicate detection
         - idx_date: Temporal queries (monthly aggregations)
+        - idx_account: Account-based filtering
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
+            # Accounts table
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
+                name VARCHAR NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                balance DECIMAL(12, 2) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'USD',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
             # Transactions table with deduplication hash
+            # Note: Foreign key constraint enforces referential integrity
+            # Account deletion is handled manually to set account_id to NULL
             """
             CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
@@ -92,6 +108,7 @@ class DatabaseManager:
                 amount DECIMAL(12, 2) NOT NULL,
                 type VARCHAR(10) NOT NULL,
                 category VARCHAR(50) DEFAULT 'Uncategorized',
+                account_id INTEGER,
                 source_file_hash VARCHAR(32) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -100,6 +117,8 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_hash ON transactions(hash)",
             # Index for temporal queries (monthly aggregations)
             "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
+            # Index for account-based filtering
+            "CREATE INDEX IF NOT EXISTS idx_account ON transactions(account_id)",
             # Category rules for auto-categorization
             """
             CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
@@ -119,17 +138,70 @@ class DatabaseManager:
                 monthly_limit DECIMAL(10, 2) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+            """,
+            # Bills tracking for reminders and payment alerts
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_bills_id START 1;
+            CREATE TABLE IF NOT EXISTS bills (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_bills_id'),
+                name VARCHAR(100) NOT NULL,
+                bill_type VARCHAR(50) NOT NULL,
+                amount DECIMAL(10, 2) NOT NULL,
+                due_date DATE NOT NULL,
+                recurrence VARCHAR(20) NOT NULL,
+                reminder_days INTEGER DEFAULT 3,
+                status VARCHAR(20) DEFAULT 'pending',
+                notes TEXT,
+                last_paid_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_goal_contributions_id START 1;
+            CREATE TABLE IF NOT EXISTS goal_contributions (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goal_contributions_id'),
+                goal_id INTEGER NOT NULL,
+                amount DECIMAL(12, 2) NOT NULL,
+                contribution_date DATE NOT NULL,
+                notes VARCHAR(200),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Index for contribution queries
+            "CREATE INDEX IF NOT EXISTS idx_contribution_goal ON goal_contributions(goal_id)"
         ]
         
         try:
             # Execute each statement individually
             for statement in schema_statements:
                 self._connection.execute(statement)
+            
+            # Create default account if none exists
+            self._create_default_account()
+            
             logger.info("Database schema initialized successfully")
         except Exception as e:
             logger.error(f"Schema initialization failed: {e}")
             raise
+    
+    def _create_default_account(self) -> None:
+        """Create a default 'Primary Account' if no accounts exist."""
+        try:
+            count_query = "SELECT COUNT(*) FROM accounts"
+            result = self._connection.execute(count_query).fetchone()
+            
+            if result[0] == 0:
+                # Create default account
+                insert_query = """
+                    INSERT INTO accounts (name, type, balance, currency)
+                    VALUES (?, ?, ?, ?)
+                """
+                self._connection.execute(insert_query, 
+                    ('Primary Account', 'Checking Account', 0.0, 'USD'))
+                logger.info("Created default 'Primary Account'")
+        except Exception as e:
+            logger.error(f"Failed to create default account: {e}")
+            # Don't raise - this is not critical for schema initialization
     
     @contextmanager
     def get_connection(self):
@@ -289,12 +361,291 @@ class DatabaseManager:
             logger.error(f"Failed to retrieve transactions: {e}")
             raise
     
+    # Account Management Methods
+    
+    def get_all_accounts(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all accounts.
+        
+        Returns:
+            List of account dictionaries with id, name, type, balance, currency
+        """
+        try:
+            query = "SELECT id, name, type, balance, currency FROM accounts ORDER BY created_at"
+            with self.get_connection() as conn:
+                results = conn.execute(query).fetchdf()
+                return results.to_dict('records')
+        except Exception as e:
+            logger.error(f"Failed to retrieve accounts: {e}")
+            raise
+    
+    def get_account(self, account_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a specific account by ID.
+        
+        Args:
+            account_id: Account ID
+        
+        Returns:
+            Account dictionary or None if not found
+        """
+        try:
+            query = "SELECT id, name, type, balance, currency FROM accounts WHERE id = ?"
+            with self.get_connection() as conn:
+                result = conn.execute(query, (account_id,)).fetchone()
+                if result:
+                    return {
+                        'id': result[0],
+                        'name': result[1],
+                        'type': result[2],
+                        'balance': result[3],
+                        'currency': result[4]
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve account {account_id}: {e}")
+            raise
+    
+    def create_account(self, name: str, account_type: str, balance: float = 0.0, currency: str = 'USD') -> int:
+        """
+        Create a new account.
+        
+        Args:
+            name: Account name
+            account_type: Account type (Savings, Checking, Credit Card, etc.)
+            balance: Initial balance
+            currency: Currency code
+        
+        Returns:
+            ID of created account
+        """
+        try:
+            query = """
+                INSERT INTO accounts (name, type, balance, currency)
+                VALUES (?, ?, ?, ?)
+            """
+            with self.get_connection() as conn:
+                conn.execute(query, (name, account_type, balance, currency))
+                # Get the last inserted ID
+                result = conn.execute("SELECT MAX(id) FROM accounts").fetchone()
+                account_id = result[0] if result else None
+                logger.info(f"Created account: {name} (ID: {account_id})")
+                return account_id
+        except Exception as e:
+            logger.error(f"Failed to create account: {e}")
+            raise
+    
+    def update_account(self, account_id: int, name: str, account_type: str, balance: float, currency: str) -> None:
+        """
+        Update an existing account.
+        
+        Args:
+            account_id: Account ID
+            name: Account name
+            account_type: Account type
+            balance: Account balance
+            currency: Currency code
+        """
+        try:
+            query = """
+                UPDATE accounts
+                SET name = ?, type = ?, balance = ?, currency = ?
+                WHERE id = ?
+            """
+            with self.get_connection() as conn:
+                conn.execute(query, (name, account_type, balance, currency, account_id))
+                logger.info(f"Updated account ID {account_id}")
+        except Exception as e:
+            logger.error(f"Failed to update account {account_id}: {e}")
+            raise
+    
+    def delete_account(self, account_id: int) -> None:
+        """
+        Delete an account.
+        
+        Args:
+            account_id: Account ID
+        
+        Note:
+            Manually sets account_id to NULL for all associated transactions
+            before deleting the account to preserve transaction history
+        """
+        try:
+            # First, update transactions to remove account association
+            update_query = "UPDATE transactions SET account_id = NULL WHERE account_id = ?"
+            with self.get_connection() as conn:
+                conn.execute(update_query, (account_id,))
+                
+                # Then delete the account
+                delete_query = "DELETE FROM accounts WHERE id = ?"
+                conn.execute(delete_query, (account_id,))
+                logger.info(f"Deleted account ID {account_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete account {account_id}: {e}")
+            raise
+    
+    def get_account_balance(self, account_id: int) -> float:
+        """
+        Calculate current balance for an account based on transactions.
+        
+        Args:
+            account_id: Account ID
+        
+        Returns:
+            Calculated balance (sum of credits - debits)
+        """
+        try:
+            query = """
+                SELECT 
+                    SUM(CASE WHEN type = 'Credit' THEN amount ELSE -amount END) as balance
+                FROM transactions
+                WHERE account_id = ?
+            """
+            with self.get_connection() as conn:
+                result = conn.execute(query, (account_id,)).fetchone()
+                return result[0] if result and result[0] else 0.0
+        except Exception as e:
+            logger.error(f"Failed to calculate balance for account {account_id}: {e}")
+            raise
+    
+    def get_net_worth(self) -> float:
+        """
+        Calculate total net worth across all accounts.
+        
+        Returns:
+            Sum of all account balances
+        """
+        try:
+            query = "SELECT SUM(balance) FROM accounts"
+            with self.get_connection() as conn:
+                result = conn.execute(query).fetchone()
+                return result[0] if result and result[0] else 0.0
+        except Exception as e:
+            logger.error(f"Failed to calculate net worth: {e}")
+            raise
+    
     def close(self) -> None:
         """Close database connection. Called on application shutdown."""
         if self._connection:
             self._connection.close()
             self._connection = None
             logger.info("Database connection closed")
+    
+    def get_all_tags(self) -> List[Dict[str, Any]]:
+        """
+        Get all tags.
+        
+        Returns:
+            List of tag dictionaries with id, name, and color
+        """
+        try:
+            query = "SELECT id, name, color FROM tags ORDER BY name"
+            results = self.execute_query(query)
+            return [{"id": r[0], "name": r[1], "color": r[2]} for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get tags: {e}")
+            return []
+    
+    def add_tag(self, name: str, color: str = '#3498db') -> Optional[int]:
+        """
+        Add a new tag.
+        
+        Args:
+            name: Tag name
+            color: Tag color (hex format)
+        
+        Returns:
+            Tag ID if successful, None otherwise
+        """
+        try:
+            query = "INSERT INTO tags (name, color) VALUES (?, ?) RETURNING id"
+            with self.get_connection() as conn:
+                result = conn.execute(query, [name, color]).fetchone()
+                logger.info(f"Added tag: {name}")
+                return result[0] if result else None
+        except Exception as e:
+            logger.error(f"Failed to add tag: {e}")
+            return None
+    
+    def tag_transaction(self, transaction_id: int, tag_id: int) -> bool:
+        """
+        Associate a tag with a transaction.
+        
+        Args:
+            transaction_id: Transaction ID
+            tag_id: Tag ID
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            query = "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (?, ?)"
+            with self.get_connection() as conn:
+                conn.execute(query, [transaction_id, tag_id])
+                logger.info(f"Tagged transaction {transaction_id} with tag {tag_id}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to tag transaction: {e}")
+            return False
+    
+    def get_transaction_tags(self, transaction_id: int) -> List[str]:
+        """
+        Get all tags for a transaction.
+        
+        Args:
+            transaction_id: Transaction ID
+        
+        Returns:
+            List of tag names
+        """
+        try:
+            query = """
+                SELECT t.name 
+                FROM tags t
+                JOIN transaction_tags tt ON t.id = tt.tag_id
+                WHERE tt.transaction_id = ?
+            """
+            results = self.execute_query(query, (transaction_id,))
+            return [r[0] for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get transaction tags: {e}")
+            return []
+    
+    def save_search(self, name: str, filter_config: str) -> bool:
+        """
+        Save a search configuration.
+        
+        Args:
+            name: Search name
+            filter_config: JSON string of filter configuration
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            query = "INSERT INTO saved_searches (name, filter_config) VALUES (?, ?)"
+            with self.get_connection() as conn:
+                conn.execute(query, [name, filter_config])
+                logger.info(f"Saved search: {name}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save search: {e}")
+            return False
+    
+    def get_saved_searches(self) -> List[Dict[str, Any]]:
+        """
+        Get all saved searches.
+        
+        Returns:
+            List of saved search dictionaries
+        """
+        try:
+            query = "SELECT id, name, filter_config FROM saved_searches ORDER BY created_at DESC"
+            results = self.execute_query(query)
+            return [{"id": r[0], "name": r[1], "filter_config": r[2]} for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get saved searches: {e}")
+            return []
 
 
 # Global instance (singleton)

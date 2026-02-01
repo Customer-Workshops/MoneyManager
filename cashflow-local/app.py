@@ -102,6 +102,8 @@ def main():
         render_upload_page()
     elif selected_page == "💳 Transactions":
         render_transactions_page()
+    elif selected_page == "🏦 Accounts":
+        render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
     elif selected_page == "📄 Reports":
