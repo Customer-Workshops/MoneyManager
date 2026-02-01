@@ -452,83 +452,76 @@ def render_top_merchants_chart():
         st.error("Failed to load merchant analysis")
 
 
-def render_upcoming_bills_widget():
-    """Render widget showing upcoming bills in the next 7 days."""
+def render_goals_overview():
+    """
+    Render goals overview section with top 3 goals and progress tracking.
+    """
+    st.subheader("🎯 Financial Goals Overview")
+    
     try:
-        st.subheader("🔔 Upcoming Bills (Next 7 Days)")
+        goals = get_top_goals(limit=3)
         
-        upcoming_bills = bill_manager.get_upcoming_bills(days_ahead=7)
-        
-        if not upcoming_bills:
-            st.success("✅ No bills due in the next 7 days!")
+        if not goals:
+            st.info("📋 No financial goals set yet. Visit the Goals page to create your first goal!")
+            if st.button("➕ Create Your First Goal"):
+                st.switch_page("pages/goals_page.py")  # Note: This won't work with our navigation, just showing intent
             return
         
-        # Display bills as a compact list
-        for bill in upcoming_bills:
-            # Convert to date if it's a pandas Timestamp
-            due_date = pd.to_datetime(bill['due_date']).date() if hasattr(pd.to_datetime(bill['due_date']), 'date') else bill['due_date']
-            days_until_due = (due_date - datetime.now().date()).days
-            
-            # Color coding based on urgency
-            if days_until_due <= 1:
-                urgency_color = "🔴"
-                urgency_text = "Due tomorrow!" if days_until_due == 1 else "Due today!"
-            elif days_until_due <= 3:
-                urgency_color = "🟡"
-                urgency_text = f"Due in {days_until_due} days"
-            else:
-                urgency_color = "🟢"
-                urgency_text = f"Due in {days_until_due} days"
-            
-            # Display bill info
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"{urgency_color} **{bill['name']}** ({bill['bill_type']})")
-                    st.caption(f"{urgency_text} - Due: {due_date.strftime('%Y-%m-%d')}")
-                with col2:
-                    st.markdown(f"**${bill['amount']:,.2f}**")
+        # Display each goal in columns
+        cols = st.columns(min(len(goals), 3))
         
-        # Navigation hint
+        for idx, goal in enumerate(goals):
+            with cols[idx]:
+                # Goal card with icon
+                goal_icon = get_goal_icon(goal['goal_type'])
+                st.markdown(f"#### {goal_icon} {goal['name']}")
+                
+                # Progress bar
+                progress = goal['progress_percent'] / 100
+                st.progress(progress)
+                
+                # Progress percentage
+                status_color = "🟢" if goal['is_on_track'] else "🔴"
+                st.markdown(f"{status_color} **{goal['progress_percent']:.1f}%** Complete")
+                
+                # Key metrics
+                st.metric(
+                    "Saved / Target",
+                    f"₹{goal['current_amount']:,.0f}",
+                    delta=f"₹{goal['remaining_amount']:,.0f} to go"
+                )
+                
+                st.metric(
+                    "Monthly Required",
+                    f"₹{goal['required_monthly']:,.0f}"
+                )
+                
+                # Target date
+                target_date = goal['target_date']
+                if isinstance(target_date, str):
+                    from datetime import datetime
+                    target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+                
+                days_text = f"{goal['days_remaining']} days" if goal['days_remaining'] > 0 else "Overdue!"
+                st.caption(f"Target: {target_date.strftime('%b %d, %Y')} ({days_text})")
+        
+        # Add link to goals page
         st.markdown("---")
-        st.info("💡 Navigate to the Bills page using the sidebar to view all bill details and manage payments")
-    
-    except Exception as e:
-        logger.error(f"Failed to render upcoming bills widget: {e}")
-        st.error("Failed to load upcoming bills")
-
-
-def render_overdue_bills_alert():
-    """Render alert banner for overdue bills."""
-    try:
-        overdue_bills = bill_manager.get_overdue_bills()
+        st.markdown("📊 [View All Goals & Add Contributions](#) - Visit the **🎯 Goals** page")
         
-        if overdue_bills:
-            total_overdue = sum(bill['amount'] for bill in overdue_bills)
-            st.error(
-                f"⚠️ **{len(overdue_bills)} Overdue Bill(s)** - "
-                f"Total: ${total_overdue:,.2f} - "
-                f"Navigate to the Bills page to view details"
-            )
+        # Savings recommendations
+        if goals:
+            total_monthly_required = sum(g['required_monthly'] for g in goals)
+            st.info(f"💡 **Savings Tip:** To reach all your top goals, allocate ₹{total_monthly_required:,.0f} per month")
+            
+            # Check for off-track goals
+            off_track_goals = [g for g in goals if not g['is_on_track']]
+            if off_track_goals:
+                st.warning(f"⚠️ {len(off_track_goals)} goal(s) are behind schedule. Consider increasing your savings rate!")
     
     except Exception as e:
-        logger.error(f"Failed to check overdue bills: {e}")
-
-
-def render_bills_summary_card():
-    """Render summary card showing total bills for the month."""
-    try:
-        total_bills_month = bill_manager.get_total_bills_this_month()
-        
-        st.metric(
-            "🔔 Total Bills This Month",
-            f"${total_bills_month:,.2f}",
-            delta=None
-        )
-    
-    except Exception as e:
-        logger.error(f"Failed to render bills summary: {e}")
-
+        logger.error(f"Failed to render goals overview: {e}")
+        st.error("Failed to load goals overview")
 
 
 def render_dashboard_page():
@@ -542,7 +535,7 @@ def render_dashboard_page():
     - Donut chart: Spending by Category
     - Bar chart: Top Merchants/Payees
     - Budget Progress Bars with color-coded alerts
-    - Upcoming Bills Widget
+    - Goals Overview with progress tracking
     """
     st.header("📊 Financial Dashboard")
     
@@ -578,8 +571,8 @@ def render_dashboard_page():
     
     st.divider()
     
-    # Bills section
-    render_upcoming_bills_widget()
+    # Goals Overview
+    render_goals_overview()
     
     # Refresh button
     st.divider()

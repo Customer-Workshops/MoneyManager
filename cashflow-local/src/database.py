@@ -74,12 +74,13 @@ class DatabaseManager:
         1. transactions: Core fact table with hash-based deduplication
         2. category_rules: Keyword-to-category mappings
         3. budgets: Monthly spending limits per category
-        4. bills: Bill reminders and payment tracking
+        4. goals: Financial goals tracking (savings targets)
+        5. goal_contributions: Individual contributions to goals
         
         Indexes:
         - idx_hash: O(1) duplicate detection
         - idx_date: Temporal queries (monthly aggregations)
-        - idx_bills_due_date: Bill reminder queries
+        - idx_goal_date: Goal temporal queries
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
@@ -160,11 +161,19 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_goal_contributions_id START 1;
+            CREATE TABLE IF NOT EXISTS goal_contributions (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goal_contributions_id'),
+                goal_id INTEGER NOT NULL,
+                amount DECIMAL(12, 2) NOT NULL,
+                contribution_date DATE NOT NULL,
+                notes VARCHAR(200),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
             """,
-            # Index for due date queries (upcoming bills, overdue bills)
-            "CREATE INDEX IF NOT EXISTS idx_bills_due_date ON bills(due_date)",
-            # Index for status queries (pending, paid, overdue)
-            "CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status)"
+            # Index for contribution queries
+            "CREATE INDEX IF NOT EXISTS idx_contribution_goal ON goal_contributions(goal_id)"
         ]
         
         try:
