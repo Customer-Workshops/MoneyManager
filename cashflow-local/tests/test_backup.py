@@ -317,18 +317,19 @@ class TestBackupManager:
             
             # Create new ZIP with corrupted data
             corrupted_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-            with zipfile.ZipFile(corrupted_file.name, 'w') as zf:
-                zf.writestr('backup.json', json.dumps(backup_data))
-            
-            with open(corrupted_file.name, 'rb') as f:
-                corrupted_bytes = f.read()
-            
-            # Validate - should fail
-            is_valid, message, _ = manager.validate_backup(corrupted_bytes)
-            
-            assert is_valid is False
-            assert "checksum" in message.lower()
-            
-            Path(corrupted_file.name).unlink()
+            try:
+                with zipfile.ZipFile(corrupted_file.name, 'w') as zf:
+                    zf.writestr('backup.json', json.dumps(backup_data, indent=2, sort_keys=True))
+                
+                with open(corrupted_file.name, 'rb') as f:
+                    corrupted_bytes = f.read()
+                
+                # Validate - should fail
+                is_valid, message, _ = manager.validate_backup(corrupted_bytes)
+                
+                assert is_valid is False
+                assert "checksum" in message.lower()
+            finally:
+                Path(corrupted_file.name).unlink()
         finally:
             Path(temp_file.name).unlink()

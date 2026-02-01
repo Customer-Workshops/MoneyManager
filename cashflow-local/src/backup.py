@@ -97,20 +97,25 @@ class BackupManager:
             backup_data['statistics'] = stats
             
             # Convert to JSON
-            json_str = json.dumps(backup_data, indent=2)
+            json_str = json.dumps(backup_data, indent=2, sort_keys=True)
             json_bytes = json_str.encode('utf-8')
             
-            # Calculate checksum
+            # Calculate checksum (without the checksum field itself)
             checksum = hashlib.sha256(json_bytes).hexdigest()
             backup_data['checksum'] = checksum
             
+            # Re-serialize with checksum included for final output
+            json_str_with_checksum = json.dumps(backup_data, indent=2, sort_keys=True)
+            
             # Create ZIP file in memory
-            zip_buffer = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as zip_buffer:
+                zip_buffer_name = zip_buffer.name
+            
             try:
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                with zipfile.ZipFile(zip_buffer_name, 'w', zipfile.ZIP_DEFLATED) as zf:
                     # Add main backup file
                     backup_filename = f"cashflow_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-                    zf.writestr(backup_filename, json_str)
+                    zf.writestr(backup_filename, json_str_with_checksum)
                     
                     # Add metadata file
                     metadata = {
@@ -122,17 +127,16 @@ class BackupManager:
                     zf.writestr("metadata.json", json.dumps(metadata, indent=2))
                 
                 # Read ZIP bytes
-                zip_buffer.seek(0)
-                zip_bytes = zip_buffer.read()
+                with open(zip_buffer_name, 'rb') as f:
+                    zip_bytes = f.read()
                 
                 logger.info(f"Backup created successfully: {stats}")
                 return zip_bytes, metadata
             
             finally:
                 # Clean up temp file
-                zip_buffer.close()
-                if os.path.exists(zip_buffer.name):
-                    os.unlink(zip_buffer.name)
+                if os.path.exists(zip_buffer_name):
+                    os.unlink(zip_buffer_name)
         
         except Exception as e:
             logger.error(f"Backup creation failed: {e}")
@@ -186,8 +190,10 @@ class BackupManager:
                     
                     # Verify checksum if present
                     if 'checksum' in backup_data:
-                        stored_checksum = backup_data.pop('checksum')
-                        json_str = json.dumps(backup_data, indent=2)
+                        stored_checksum = backup_data.get('checksum')
+                        # Create a copy without checksum for validation
+                        data_without_checksum = {k: v for k, v in backup_data.items() if k != 'checksum'}
+                        json_str = json.dumps(data_without_checksum, indent=2, sort_keys=True)
                         calculated_checksum = hashlib.sha256(json_str.encode('utf-8')).hexdigest()
                         
                         if stored_checksum != calculated_checksum:

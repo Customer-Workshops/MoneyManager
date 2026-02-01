@@ -162,27 +162,28 @@ def render_restore_section():
         )
         
         # Selective mode date inputs
-        start_date = None
-        end_date = None
+        start_date_value = None
+        end_date_value = None
         if restore_mode == "selective":
             col1, col2 = st.columns(2)
             with col1:
-                start_date = st.date_input(
+                start_date_input = st.date_input(
                     "Start Date",
                     value=None,
                     help="Restore transactions from this date onwards"
                 )
             with col2:
-                end_date = st.date_input(
+                end_date_input = st.date_input(
                     "End Date",
                     value=None,
                     help="Restore transactions up to this date"
                 )
             
-            if start_date:
-                start_date = start_date.isoformat()
-            if end_date:
-                end_date = end_date.isoformat()
+            # Convert to ISO format strings
+            if start_date_input:
+                start_date_value = start_date_input.isoformat()
+            if end_date_input:
+                end_date_value = end_date_input.isoformat()
         
         # Confirmation and restore
         st.markdown("---")
@@ -210,8 +211,8 @@ def render_restore_section():
                         success, message, stats = backup_manager.restore_backup(
                             zip_bytes,
                             mode=restore_mode,
-                            start_date=start_date,
-                            end_date=end_date
+                            start_date=start_date_value,
+                            end_date=end_date_value
                         )
                     
                     if success:
