@@ -74,6 +74,8 @@ class DatabaseManager:
         1. transactions: Core fact table with hash-based deduplication
         2. category_rules: Keyword-to-category mappings
         3. budgets: Monthly spending limits per category
+        4. accounts: Bank account information with opening balances
+        5. account_balances: Historical balance tracking per account
         
         Indexes:
         - idx_hash: O(1) duplicate detection
@@ -119,13 +121,61 @@ class DatabaseManager:
                 monthly_limit DECIMAL(10, 2) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+            """,
+            # Accounts table for tracking bank accounts
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
+                name VARCHAR(100) UNIQUE NOT NULL,
+                account_number VARCHAR(50),
+                account_type VARCHAR(20) DEFAULT 'Checking',
+                opening_balance DECIMAL(12, 2) DEFAULT 0.00,
+                opening_balance_date DATE,
+                currency VARCHAR(3) DEFAULT 'INR',
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Account balances history table
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_account_balances_id START 1;
+            CREATE TABLE IF NOT EXISTS account_balances (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_account_balances_id'),
+                account_id INTEGER NOT NULL,
+                balance_date DATE NOT NULL,
+                calculated_balance DECIMAL(12, 2) NOT NULL,
+                actual_balance DECIMAL(12, 2),
+                variance DECIMAL(12, 2),
+                is_reconciled BOOLEAN DEFAULT FALSE,
+                reconciled_at TIMESTAMP,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(account_id, balance_date)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_account_balances_date ON account_balances(balance_date)",
+            "CREATE INDEX IF NOT EXISTS idx_account_balances_account ON account_balances(account_id)"
+        ]
+        
+        # Migration: Add reconciliation fields to transactions table if they don't exist
+        migration_statements = [
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS account_id INTEGER",
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reconciled BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP",
+            "CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)",
+            "CREATE INDEX IF NOT EXISTS idx_transactions_reconciled ON transactions(reconciled)"
         ]
         
         try:
             # Execute each statement individually
             for statement in schema_statements:
                 self._connection.execute(statement)
+            
+            # Execute migration statements
+            for statement in migration_statements:
+                self._connection.execute(statement)
+            
             logger.info("Database schema initialized successfully")
         except Exception as e:
             logger.error(f"Schema initialization failed: {e}")
@@ -250,6 +300,8 @@ class DatabaseManager:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         category: Optional[str] = None,
+        account_id: Optional[int] = None,
+        reconciled: Optional[bool] = None,
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
         """
@@ -259,6 +311,8 @@ class DatabaseManager:
             start_date: Filter transactions after this date
             end_date: Filter transactions before this date
             category: Filter by category
+            account_id: Filter by account
+            reconciled: Filter by reconciliation status
             limit: Maximum number of records to return
         
         Returns:
@@ -279,6 +333,14 @@ class DatabaseManager:
             query += " AND category = ?"
             params.append(category)
         
+        if account_id is not None:
+            query += " AND account_id = ?"
+            params.append(account_id)
+        
+        if reconciled is not None:
+            query += " AND reconciled = ?"
+            params.append(reconciled)
+        
         query += f" ORDER BY transaction_date DESC LIMIT {limit}"
         
         try:
@@ -287,6 +349,221 @@ class DatabaseManager:
                 return results.to_dict('records')
         except Exception as e:
             logger.error(f"Failed to retrieve transactions: {e}")
+            raise
+    
+    def get_accounts(self, active_only: bool = True) -> List[Dict[str, Any]]:
+        """
+        Retrieve all accounts.
+        
+        Args:
+            active_only: If True, only return active accounts
+        
+        Returns:
+            List of account dictionaries
+        """
+        query = "SELECT * FROM accounts"
+        if active_only:
+            query += " WHERE is_active = TRUE"
+        query += " ORDER BY name"
+        
+        try:
+            with self.get_connection() as conn:
+                results = conn.execute(query).fetchdf()
+                return results.to_dict('records')
+        except Exception as e:
+            logger.error(f"Failed to retrieve accounts: {e}")
+            raise
+    
+    def get_account_by_id(self, account_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a specific account by ID.
+        
+        Args:
+            account_id: Account ID
+        
+        Returns:
+            Account dictionary or None if not found
+        """
+        query = "SELECT * FROM accounts WHERE id = ?"
+        
+        try:
+            with self.get_connection() as conn:
+                results = conn.execute(query, [account_id]).fetchdf()
+                if len(results) > 0:
+                    return results.to_dict('records')[0]
+                return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve account: {e}")
+            raise
+    
+    def calculate_account_balance(
+        self,
+        account_id: int,
+        as_of_date: Optional[datetime] = None
+    ) -> float:
+        """
+        Calculate account balance as of a specific date.
+        
+        Args:
+            account_id: Account ID
+            as_of_date: Calculate balance as of this date (defaults to today)
+        
+        Returns:
+            Calculated balance
+        """
+        account = self.get_account_by_id(account_id)
+        if not account:
+            raise ValueError(f"Account {account_id} not found")
+        
+        opening_balance = account.get('opening_balance', 0) or 0
+        opening_date = account.get('opening_balance_date')
+        
+        query = """
+            SELECT SUM(
+                CASE 
+                    WHEN type = 'Credit' THEN amount 
+                    WHEN type = 'Debit' THEN -amount 
+                    ELSE 0 
+                END
+            ) as net_change
+            FROM transactions
+            WHERE account_id = ?
+        """
+        params = [account_id]
+        
+        if opening_date:
+            query += " AND transaction_date >= ?"
+            params.append(opening_date)
+        
+        if as_of_date:
+            query += " AND transaction_date <= ?"
+            params.append(as_of_date)
+        
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute(query, params).fetchone()
+                net_change = result[0] if result[0] is not None else 0
+                return float(opening_balance) + float(net_change)
+        except Exception as e:
+            logger.error(f"Failed to calculate account balance: {e}")
+            raise
+    
+    def mark_transactions_reconciled(
+        self,
+        transaction_ids: List[int],
+        reconciled: bool = True
+    ) -> int:
+        """
+        Mark transactions as reconciled or unreconciled.
+        
+        Args:
+            transaction_ids: List of transaction IDs to update
+            reconciled: True to mark as reconciled, False to unmark
+        
+        Returns:
+            Number of transactions updated
+        """
+        if not transaction_ids:
+            return 0
+        
+        try:
+            placeholders = ", ".join(["?" for _ in transaction_ids])
+            query = f"""
+                UPDATE transactions 
+                SET reconciled = ?, 
+                    reconciled_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END
+                WHERE id IN ({placeholders})
+            """
+            
+            with self.get_connection() as conn:
+                conn.execute(query, [reconciled, reconciled] + transaction_ids)
+                logger.info(f"Marked {len(transaction_ids)} transactions as {'reconciled' if reconciled else 'unreconciled'}")
+                return len(transaction_ids)
+        except Exception as e:
+            logger.error(f"Failed to mark transactions as reconciled: {e}")
+            raise
+    
+    def save_balance_snapshot(
+        self,
+        account_id: int,
+        balance_date: datetime,
+        calculated_balance: float,
+        actual_balance: Optional[float] = None,
+        notes: Optional[str] = None
+    ) -> None:
+        """
+        Save a balance snapshot for reconciliation.
+        
+        Args:
+            account_id: Account ID
+            balance_date: Date of the balance snapshot
+            calculated_balance: App-calculated balance
+            actual_balance: User-entered actual bank balance
+            notes: Optional notes about the reconciliation
+        """
+        variance = None
+        is_reconciled = False
+        
+        if actual_balance is not None:
+            variance = actual_balance - calculated_balance
+            is_reconciled = abs(variance) < 0.01  # Consider reconciled if difference < 1 cent
+        
+        try:
+            with self.get_connection() as conn:
+                # Try to insert or update
+                conn.execute("""
+                    INSERT INTO account_balances 
+                    (account_id, balance_date, calculated_balance, actual_balance, variance, is_reconciled, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (account_id, balance_date) DO UPDATE SET
+                        calculated_balance = EXCLUDED.calculated_balance,
+                        actual_balance = EXCLUDED.actual_balance,
+                        variance = EXCLUDED.variance,
+                        is_reconciled = EXCLUDED.is_reconciled,
+                        notes = EXCLUDED.notes,
+                        reconciled_at = CASE WHEN EXCLUDED.is_reconciled THEN CURRENT_TIMESTAMP ELSE NULL END
+                """, [account_id, balance_date, calculated_balance, actual_balance, variance, is_reconciled, notes])
+                logger.info(f"Saved balance snapshot for account {account_id} on {balance_date}")
+        except Exception as e:
+            logger.error(f"Failed to save balance snapshot: {e}")
+            raise
+    
+    def get_balance_history(
+        self,
+        account_id: int,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get balance history for an account.
+        
+        Args:
+            account_id: Account ID
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+        
+        Returns:
+            List of balance history records
+        """
+        query = "SELECT * FROM account_balances WHERE account_id = ?"
+        params = [account_id]
+        
+        if start_date:
+            query += " AND balance_date >= ?"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND balance_date <= ?"
+            params.append(end_date)
+        
+        query += " ORDER BY balance_date DESC"
+        
+        try:
+            with self.get_connection() as conn:
+                results = conn.execute(query, params).fetchdf()
+                return results.to_dict('records')
+        except Exception as e:
+            logger.error(f"Failed to retrieve balance history: {e}")
             raise
     
     def close(self) -> None:
