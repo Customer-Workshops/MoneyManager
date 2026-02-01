@@ -71,16 +71,11 @@ class DatabaseManager:
         Create database schema if it doesn't exist.
         
         Schema Design:
-        1. users: User accounts with authentication
-        2. workspaces: Family/group workspaces
-        3. user_workspace_roles: Role-based access control
-        4. transactions: Core fact table with hash-based deduplication
-        5. category_rules: Keyword-to-category mappings
-        6. budgets: Monthly spending limits per category
-        7. accounts: Bank accounts (shared or personal)
-        8. goals: Shared savings goals
-        9. transaction_comments: Comments on transactions
-        10. activity_log: Audit trail
+        1. transactions: Core fact table with hash-based deduplication
+        2. category_rules: Keyword-to-category mappings
+        3. budgets: Monthly spending limits per category
+        4. tax_categories: Indian tax sections (80C, 80D, HRA, etc.)
+        5. transaction_tax_tags: Many-to-many relationship between transactions and tax categories
         
         Indexes:
         - idx_hash: O(1) duplicate detection
@@ -200,33 +195,32 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
-            # Transaction comments
+            # Tax categories table for Indian tax sections
             """
-            CREATE SEQUENCE IF NOT EXISTS seq_transaction_comments_id START 1;
-            CREATE TABLE IF NOT EXISTS transaction_comments (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_transaction_comments_id'),
+            CREATE SEQUENCE IF NOT EXISTS seq_tax_categories_id START 1;
+            CREATE TABLE IF NOT EXISTS tax_categories (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_tax_categories_id'),
+                name VARCHAR(100) UNIQUE NOT NULL,
+                section VARCHAR(50) NOT NULL,
+                description VARCHAR(500),
+                annual_limit DECIMAL(12, 2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Many-to-many relationship between transactions and tax categories
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_transaction_tax_tags_id START 1;
+            CREATE TABLE IF NOT EXISTS transaction_tax_tags (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_transaction_tax_tags_id'),
                 transaction_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                comment TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                tax_category_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(transaction_id, tax_category_id)
             )
             """,
-            # Activity log (audit trail)
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_activity_log_id START 1;
-            CREATE TABLE IF NOT EXISTS activity_log (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_activity_log_id'),
-                workspace_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                action VARCHAR(50) NOT NULL,
-                entity_type VARCHAR(50) NOT NULL,
-                entity_id INTEGER,
-                description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Index for activity log queries
-            "CREATE INDEX IF NOT EXISTS idx_activity_workspace ON activity_log(workspace_id)"
+            # Index for efficient tax tag lookups
+            "CREATE INDEX IF NOT EXISTS idx_tax_tags_transaction ON transaction_tax_tags(transaction_id)",
+            "CREATE INDEX IF NOT EXISTS idx_tax_tags_category ON transaction_tax_tags(tax_category_id)"
         ]
         
         try:
@@ -238,28 +232,104 @@ class DatabaseManager:
             self._create_default_account()
             
             logger.info("Database schema initialized successfully")
+            
+            # Initialize predefined tax categories
+            self._initialize_tax_categories()
         except Exception as e:
             logger.error(f"Schema initialization failed: {e}")
             raise
     
-    def _create_default_account(self) -> None:
-        """Create a default 'Primary Account' if no accounts exist."""
+    def _initialize_tax_categories(self) -> None:
+        """
+        Initialize predefined Indian tax categories if not already present.
+        
+        Tax Categories (India):
+        - 80C: Investments (ELSS, EPF, PPF, Life Insurance) - Max: ₹1.5L
+        - 80D: Health Insurance premiums - Max: ₹25K (₹50K for senior citizens)
+        - 80E: Education Loan interest - No limit
+        - 80G: Donations to charity - 50% or 100% of donation
+        - 80TTA: Savings account interest - Max: ₹10K
+        - HRA: House Rent Allowance - Based on salary
+        - Home Loan Interest: Section 24 - Max: ₹2L
+        - Business Expenses: For freelancers - As per actual
+        """
+        predefined_categories = [
+            {
+                'name': '80C - Investments',
+                'section': '80C',
+                'description': 'ELSS, EPF, PPF, Life Insurance, Tax-saving FD',
+                'annual_limit': 150000.00
+            },
+            {
+                'name': '80D - Health Insurance',
+                'section': '80D',
+                'description': 'Health Insurance premiums for self and family',
+                'annual_limit': 25000.00
+            },
+            {
+                'name': '80D - Senior Citizen Health Insurance',
+                'section': '80D',
+                'description': 'Health Insurance premiums for senior citizens',
+                'annual_limit': 50000.00
+            },
+            {
+                'name': '80E - Education Loan',
+                'section': '80E',
+                'description': 'Interest on Education Loan',
+                'annual_limit': None  # No limit
+            },
+            {
+                'name': '80G - Donations',
+                'section': '80G',
+                'description': 'Donations to charitable institutions',
+                'annual_limit': None  # Depends on donation type
+            },
+            {
+                'name': '80TTA - Savings Interest',
+                'section': '80TTA',
+                'description': 'Interest from Savings Account',
+                'annual_limit': 10000.00
+            },
+            {
+                'name': 'HRA - House Rent',
+                'section': 'HRA',
+                'description': 'House Rent Allowance',
+                'annual_limit': None  # Based on salary and rent
+            },
+            {
+                'name': 'Section 24 - Home Loan Interest',
+                'section': '24',
+                'description': 'Interest on Home Loan',
+                'annual_limit': 200000.00
+            },
+            {
+                'name': 'Business Expenses',
+                'section': 'Business',
+                'description': 'Business-related expenses for freelancers',
+                'annual_limit': None  # As per actual
+            }
+        ]
+        
         try:
-            count_query = "SELECT COUNT(*) FROM accounts"
-            result = self._connection.execute(count_query).fetchone()
-            
-            if result[0] == 0:
-                # Create default account
-                insert_query = """
-                    INSERT INTO accounts (name, type, balance, currency)
-                    VALUES (?, ?, ?, ?)
-                """
-                self._connection.execute(insert_query, 
-                    ('Primary Account', 'Checking Account', 0.0, 'USD'))
-                logger.info("Created default 'Primary Account'")
+            # Check if tax categories already exist
+            with self.get_connection() as conn:
+                count = conn.execute("SELECT COUNT(*) FROM tax_categories").fetchone()[0]
+                
+                # Only insert if table is empty
+                if count == 0:
+                    for category in predefined_categories:
+                        conn.execute(
+                            """
+                            INSERT INTO tax_categories (name, section, description, annual_limit)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (category['name'], category['section'], category['description'], category['annual_limit'])
+                        )
+                    logger.info(f"Initialized {len(predefined_categories)} predefined tax categories")
         except Exception as e:
-            logger.error(f"Failed to create default account: {e}")
-            # Don't raise - this is not critical for schema initialization
+            logger.error(f"Failed to initialize tax categories: {e}")
+            # Don't raise - this is not critical for app functionality
+    
     
     @contextmanager
     def get_connection(self):
@@ -419,167 +489,217 @@ class DatabaseManager:
             logger.error(f"Failed to retrieve transactions: {e}")
             raise
     
-    # Account Management Methods
-    
-    def get_all_accounts(self) -> List[Dict[str, Any]]:
+    def get_all_tax_categories(self) -> List[Dict[str, Any]]:
         """
-        Retrieve all accounts.
+        Retrieve all available tax categories.
         
         Returns:
-            List of account dictionaries with id, name, type, balance, currency
+            List of tax category dictionaries
         """
+        query = "SELECT * FROM tax_categories ORDER BY section, name"
+        
         try:
-            query = "SELECT id, name, type, balance, currency FROM accounts ORDER BY created_at"
             with self.get_connection() as conn:
                 results = conn.execute(query).fetchdf()
                 return results.to_dict('records')
         except Exception as e:
-            logger.error(f"Failed to retrieve accounts: {e}")
+            logger.error(f"Failed to retrieve tax categories: {e}")
             raise
     
-    def get_account(self, account_id: int) -> Optional[Dict[str, Any]]:
+    def add_tax_tag(self, transaction_id: int, tax_category_id: int) -> bool:
         """
-        Retrieve a specific account by ID.
+        Add a tax tag to a transaction.
         
         Args:
-            account_id: Account ID
+            transaction_id: Transaction ID
+            tax_category_id: Tax category ID
         
         Returns:
-            Account dictionary or None if not found
+            True if tag was added, False if it already existed
         """
         try:
-            query = "SELECT id, name, type, balance, currency FROM accounts WHERE id = ?"
             with self.get_connection() as conn:
-                result = conn.execute(query, (account_id,)).fetchone()
-                if result:
-                    return {
-                        'id': result[0],
-                        'name': result[1],
-                        'type': result[2],
-                        'balance': result[3],
-                        'currency': result[4]
-                    }
-                return None
-        except Exception as e:
-            logger.error(f"Failed to retrieve account {account_id}: {e}")
-            raise
-    
-    def create_account(self, name: str, account_type: str, balance: float = 0.0, currency: str = 'USD') -> int:
-        """
-        Create a new account.
-        
-        Args:
-            name: Account name
-            account_type: Account type (Savings, Checking, Credit Card, etc.)
-            balance: Initial balance
-            currency: Currency code
-        
-        Returns:
-            ID of created account
-        """
-        try:
-            query = """
-                INSERT INTO accounts (name, type, balance, currency)
-                VALUES (?, ?, ?, ?)
-            """
-            with self.get_connection() as conn:
-                conn.execute(query, (name, account_type, balance, currency))
-                # Get the last inserted ID
-                result = conn.execute("SELECT MAX(id) FROM accounts").fetchone()
-                account_id = result[0] if result else None
-                logger.info(f"Created account: {name} (ID: {account_id})")
-                return account_id
-        except Exception as e:
-            logger.error(f"Failed to create account: {e}")
-            raise
-    
-    def update_account(self, account_id: int, name: str, account_type: str, balance: float, currency: str) -> None:
-        """
-        Update an existing account.
-        
-        Args:
-            account_id: Account ID
-            name: Account name
-            account_type: Account type
-            balance: Account balance
-            currency: Currency code
-        """
-        try:
-            query = """
-                UPDATE accounts
-                SET name = ?, type = ?, balance = ?, currency = ?
-                WHERE id = ?
-            """
-            with self.get_connection() as conn:
-                conn.execute(query, (name, account_type, balance, currency, account_id))
-                logger.info(f"Updated account ID {account_id}")
-        except Exception as e:
-            logger.error(f"Failed to update account {account_id}: {e}")
-            raise
-    
-    def delete_account(self, account_id: int) -> None:
-        """
-        Delete an account.
-        
-        Args:
-            account_id: Account ID
-        
-        Note:
-            Manually sets account_id to NULL for all associated transactions
-            before deleting the account to preserve transaction history
-        """
-        try:
-            # First, update transactions to remove account association
-            update_query = "UPDATE transactions SET account_id = NULL WHERE account_id = ?"
-            with self.get_connection() as conn:
-                conn.execute(update_query, (account_id,))
+                # Check if tag already exists
+                existing = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM transaction_tax_tags 
+                    WHERE transaction_id = ? AND tax_category_id = ?
+                    """,
+                    (transaction_id, tax_category_id)
+                ).fetchone()[0]
                 
-                # Then delete the account
-                delete_query = "DELETE FROM accounts WHERE id = ?"
-                conn.execute(delete_query, (account_id,))
-                logger.info(f"Deleted account ID {account_id}")
+                if existing > 0:
+                    return False
+                
+                # Insert new tag
+                conn.execute(
+                    """
+                    INSERT INTO transaction_tax_tags (transaction_id, tax_category_id)
+                    VALUES (?, ?)
+                    """,
+                    (transaction_id, tax_category_id)
+                )
+                logger.info(f"Added tax tag {tax_category_id} to transaction {transaction_id}")
+                return True
         except Exception as e:
-            logger.error(f"Failed to delete account {account_id}: {e}")
+            logger.error(f"Failed to add tax tag: {e}")
             raise
     
-    def get_account_balance(self, account_id: int) -> float:
+    def remove_tax_tag(self, transaction_id: int, tax_category_id: int) -> bool:
         """
-        Calculate current balance for an account based on transactions.
+        Remove a tax tag from a transaction.
         
         Args:
-            account_id: Account ID
+            transaction_id: Transaction ID
+            tax_category_id: Tax category ID
         
         Returns:
-            Calculated balance (sum of credits - debits)
+            True if tag was removed, False if it didn't exist
         """
         try:
-            query = """
-                SELECT 
-                    SUM(CASE WHEN type = 'Credit' THEN amount ELSE -amount END) as balance
-                FROM transactions
-                WHERE account_id = ?
-            """
             with self.get_connection() as conn:
-                result = conn.execute(query, (account_id,)).fetchone()
-                return result[0] if result and result[0] else 0.0
+                result = conn.execute(
+                    """
+                    DELETE FROM transaction_tax_tags 
+                    WHERE transaction_id = ? AND tax_category_id = ?
+                    """,
+                    (transaction_id, tax_category_id)
+                )
+                logger.info(f"Removed tax tag {tax_category_id} from transaction {transaction_id}")
+                return True
         except Exception as e:
-            logger.error(f"Failed to calculate balance for account {account_id}: {e}")
+            logger.error(f"Failed to remove tax tag: {e}")
             raise
     
-    def get_net_worth(self) -> float:
+    def get_transaction_tax_tags(self, transaction_id: int) -> List[Dict[str, Any]]:
         """
-        Calculate total net worth across all accounts.
+        Get all tax tags for a specific transaction.
+        
+        Args:
+            transaction_id: Transaction ID
         
         Returns:
-            Sum of all account balances
+            List of tax category dictionaries
         """
+        query = """
+            SELECT tc.* 
+            FROM tax_categories tc
+            INNER JOIN transaction_tax_tags ttt ON tc.id = ttt.tax_category_id
+            WHERE ttt.transaction_id = ?
+            ORDER BY tc.section, tc.name
+        """
+        
         try:
-            query = "SELECT SUM(balance) FROM accounts"
             with self.get_connection() as conn:
-                result = conn.execute(query).fetchone()
-                return result[0] if result and result[0] else 0.0
+                results = conn.execute(query, (transaction_id,)).fetchdf()
+                return results.to_dict('records')
         except Exception as e:
-            logger.error(f"Failed to calculate net worth: {e}")
+            logger.error(f"Failed to retrieve transaction tax tags: {e}")
+            raise
+    
+    def get_tax_summary(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get summary of tax deductions by category for a given period.
+        
+        Args:
+            start_date: Start date for the period
+            end_date: End date for the period
+        
+        Returns:
+            List of dictionaries with tax category summary
+        """
+        query = """
+            SELECT 
+                tc.id,
+                tc.name,
+                tc.section,
+                tc.description,
+                tc.annual_limit,
+                COUNT(DISTINCT t.id) as transaction_count,
+                SUM(ABS(t.amount)) as total_amount,
+                CASE 
+                    WHEN tc.annual_limit IS NOT NULL THEN 
+                        ROUND((SUM(ABS(t.amount)) / tc.annual_limit) * 100, 2)
+                    ELSE NULL 
+                END as utilization_percent
+            FROM tax_categories tc
+            LEFT JOIN transaction_tax_tags ttt ON tc.id = ttt.tax_category_id
+            LEFT JOIN transactions t ON ttt.transaction_id = t.id
+        """
+        
+        conditions = []
+        params = []
+        
+        if start_date:
+            conditions.append("(t.transaction_date >= ? OR t.transaction_date IS NULL)")
+            params.append(start_date)
+        
+        if end_date:
+            conditions.append("(t.transaction_date <= ? OR t.transaction_date IS NULL)")
+            params.append(end_date)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += """
+            GROUP BY tc.id, tc.name, tc.section, tc.description, tc.annual_limit
+            ORDER BY tc.section, tc.name
+        """
+        
+        try:
+            with self.get_connection() as conn:
+                results = conn.execute(query, params).fetchdf()
+                return results.to_dict('records')
+        except Exception as e:
+            logger.error(f"Failed to retrieve tax summary: {e}")
+            raise
+    
+    def get_transactions_by_tax_category(
+        self,
+        tax_category_id: int,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all transactions for a specific tax category.
+        
+        Args:
+            tax_category_id: Tax category ID
+            start_date: Filter transactions after this date
+            end_date: Filter transactions before this date
+        
+        Returns:
+            List of transaction dictionaries
+        """
+        query = """
+            SELECT t.*
+            FROM transactions t
+            INNER JOIN transaction_tax_tags ttt ON t.id = ttt.transaction_id
+            WHERE ttt.tax_category_id = ?
+        """
+        
+        params = [tax_category_id]
+        
+        if start_date:
+            query += " AND t.transaction_date >= ?"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND t.transaction_date <= ?"
+            params.append(end_date)
+        
+        query += " ORDER BY t.transaction_date DESC"
+        
+        try:
+            with self.get_connection() as conn:
+                results = conn.execute(query, params).fetchdf()
+                return results.to_dict('records')
+        except Exception as e:
+            logger.error(f"Failed to retrieve transactions by tax category: {e}")
             raise
     
     def close(self) -> None:

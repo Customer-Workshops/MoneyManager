@@ -8,7 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 from typing import Dict, Any
 
@@ -468,76 +468,95 @@ def render_top_merchants_chart():
         st.error("Failed to load merchant analysis")
 
 
-def render_goals_overview():
-    """
-    Render goals overview section with top 3 goals and progress tracking.
-    """
-    st.subheader("🎯 Financial Goals Overview")
-    
+def render_tax_savings_widget():
+    """Render tax savings widget showing YTD savings and limits."""
     try:
-        goals = get_top_goals(limit=3)
+        st.markdown("### 💰 Tax Savings (FY 2026-27)")
         
-        if not goals:
-            st.info("📋 No financial goals set yet. Visit the Goals page to create your first goal!")
-            if st.button("➕ Create Your First Goal"):
-                st.switch_page("pages/goals_page.py")  # Note: This won't work with our navigation, just showing intent
+        # Get current financial year dates (April to March)
+        current_date = datetime.now()
+        if current_date.month >= 4:
+            fy_start = date(current_date.year, 4, 1)
+            fy_end = date(current_date.year + 1, 3, 31)
+        else:
+            fy_start = date(current_date.year - 1, 4, 1)
+            fy_end = date(current_date.year, 3, 31)
+        
+        # Get tax summary
+        tax_summary = db_manager.get_tax_summary(
+            start_date=datetime.combine(fy_start, datetime.min.time()),
+            end_date=datetime.combine(fy_end, datetime.max.time())
+        )
+        
+        if not tax_summary or len(tax_summary) == 0:
+            st.info("No tax deductions recorded yet. Visit the Tax Reports page to start tagging transactions!")
             return
         
-        # Display each goal in columns
-        cols = st.columns(min(len(goals), 3))
+        df = pd.DataFrame(tax_summary)
         
-        for idx, goal in enumerate(goals):
-            with cols[idx]:
-                # Goal card with icon
-                goal_icon = get_goal_icon(goal['goal_type'])
-                st.markdown(f"#### {goal_icon} {goal['name']}")
-                
-                # Progress bar
-                progress = goal['progress_percent'] / 100
-                st.progress(progress)
-                
-                # Progress percentage
-                status_color = "🟢" if goal['is_on_track'] else "🔴"
-                st.markdown(f"{status_color} **{goal['progress_percent']:.1f}%** Complete")
-                
-                # Key metrics
-                st.metric(
-                    "Saved / Target",
-                    f"₹{goal['current_amount']:,.0f}",
-                    delta=f"₹{goal['remaining_amount']:,.0f} to go"
-                )
-                
-                st.metric(
-                    "Monthly Required",
-                    f"₹{goal['required_monthly']:,.0f}"
-                )
-                
-                # Target date
-                target_date = goal['target_date']
-                if isinstance(target_date, str):
-                    from datetime import datetime
-                    target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
-                
-                days_text = f"{goal['days_remaining']} days" if goal['days_remaining'] > 0 else "Overdue!"
-                st.caption(f"Target: {target_date.strftime('%b %d, %Y')} ({days_text})")
+        # Calculate total deductions and savings
+        total_deductions = df['total_amount'].sum()
+        estimated_savings = total_deductions * 0.30  # Assuming 30% tax bracket
         
-        # Add link to goals page
-        st.markdown("---")
-        st.markdown("📊 [View All Goals & Add Contributions](#) - Visit the **🎯 Goals** page")
+        # Show summary metrics
+        col1, col2 = st.columns(2)
         
-        # Savings recommendations
-        if goals:
-            total_monthly_required = sum(g['required_monthly'] for g in goals)
-            st.info(f"💡 **Savings Tip:** To reach all your top goals, allocate ₹{total_monthly_required:,.0f} per month")
+        with col1:
+            st.metric(
+                "Total Deductions YTD",
+                f"₹{total_deductions:,.0f}",
+                help="Year-to-date tax deductible expenses"
+            )
+        
+        with col2:
+            st.metric(
+                "Estimated Tax Savings",
+                f"₹{estimated_savings:,.0f}",
+                delta=f"@30% bracket",
+                help="Potential tax savings based on 30% tax bracket"
+            )
+        
+        # Show top categories with limits
+        st.markdown("**Top Tax Categories:**")
+        
+        # Filter categories with limits and sort by utilization
+        limited_categories = df[df['annual_limit'].notna()].copy()
+        
+        if len(limited_categories) > 0:
+            limited_categories = limited_categories.sort_values('utilization_percent', ascending=False).head(3)
             
-            # Check for off-track goals
-            off_track_goals = [g for g in goals if not g['is_on_track']]
-            if off_track_goals:
-                st.warning(f"⚠️ {len(off_track_goals)} goal(s) are behind schedule. Consider increasing your savings rate!")
+            for _, row in limited_categories.iterrows():
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    utilization = row['utilization_percent'] if pd.notna(row['utilization_percent']) else 0
+                    st.progress(min(utilization / 100, 1.0))
+                    
+                    # Determine color indicator
+                    if utilization >= 90:
+                        indicator = "🔴"
+                    elif utilization >= 70:
+                        indicator = "🟡"
+                    else:
+                        indicator = "🟢"
+                    
+                    st.caption(f"{indicator} {row['section']}: ₹{row['total_amount']:,.0f} / ₹{row['annual_limit']:,.0f}")
+                
+                with col2:
+                    remaining = row['annual_limit'] - row['total_amount']
+                    if remaining > 0:
+                        st.caption(f"₹{remaining:,.0f} left")
+                    else:
+                        st.caption("Maxed out")
+        
+        # Link to tax reports page
+        st.markdown("---")
+        st.markdown("📋 [View detailed tax reports →](javascript:void(0))")
+        st.caption("Go to Tax Reports page for full analysis and export options")
     
     except Exception as e:
-        logger.error(f"Failed to render goals overview: {e}")
-        st.error("Failed to load goals overview")
+        logger.error(f"Failed to render tax savings widget: {e}")
+        st.info("Tax savings information unavailable")
 
 
 def render_dashboard_page():
@@ -604,8 +623,9 @@ def render_dashboard_page():
     
     st.divider()
     
-    # Goals Overview
-    render_goals_overview()
+    # Charts row 3: Tax Savings Widget
+    st.subheader("🏦 Tax Planning")
+    render_tax_savings_widget()
     
     # Refresh button
     st.divider()
