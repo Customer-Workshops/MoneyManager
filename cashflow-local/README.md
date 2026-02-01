@@ -191,6 +191,7 @@ cashflow-local/
     ├── test_workspace.py       # Workspace management tests
     ├── test_deduplication.py
     ├── test_parsers.py
+    ├── test_reconciliation.py
     └── fixtures/
         └── sample_statement.csv
 ```

@@ -144,8 +144,10 @@ def main():
         render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
-    elif selected_page == "📋 Tax Reports":
-        render_tax_reports_page()
+    elif selected_page == "🏦 Accounts":
+        render_accounts_page()
+    elif selected_page == "⚖️ Reconciliation":
+        render_reconciliation_page()
 
 
 if __name__ == "__main__":
