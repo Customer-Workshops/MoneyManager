@@ -306,7 +306,9 @@ def render_patterns(patterns: dict):
         st.caption("Regular payments that could be automated")
         
         for trans in recurring[:5]:
-            with st.expander(f"{trans['description'][:40]}... - ${trans['amount']:.2f} (x{trans['frequency']})"):
+            desc = trans['description']
+            truncated_desc = f"{desc[:40]}{'...' if len(desc) > 40 else ''}"
+            with st.expander(f"{truncated_desc} - ${trans['amount']:.2f} (x{trans['frequency']})"):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Amount", f"${trans['amount']:,.2f}")
@@ -330,7 +332,11 @@ def render_patterns(patterns: dict):
         
         for dup in duplicates[:5]:
             st.warning(f"**${dup['amount']:.2f}** on {dup['date']}")
-            st.caption(f"Descriptions: {dup['descriptions'][0][:40]}... / {dup['descriptions'][1][:40]}...")
+            desc1 = dup['descriptions'][0]
+            desc2 = dup['descriptions'][1]
+            truncated_desc1 = f"{desc1[:40]}{'...' if len(desc1) > 40 else ''}"
+            truncated_desc2 = f"{desc2[:40]}{'...' if len(desc2) > 40 else ''}"
+            st.caption(f"Descriptions: {truncated_desc1} / {truncated_desc2}")
             st.caption(f"⚠️ {dup['warning']}")
             st.markdown("---")
     else:

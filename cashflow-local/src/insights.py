@@ -20,8 +20,8 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from collections import defaultdict
 import statistics
+import calendar
 
-import pandas as pd
 import numpy as np
 
 from .database import DatabaseManager
@@ -280,8 +280,7 @@ class InsightsEngine:
             
             # Calculate days into month and total days in month
             day_of_month = current_date.day
-            days_in_month = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-            total_days = days_in_month.day
+            total_days = calendar.monthrange(current_date.year, current_date.month)[1]
             
             if day_of_month < 5:  # Too early in month for accurate predictions
                 return predictions
@@ -349,9 +348,12 @@ class InsightsEngine:
                 usage_percentage = (current_spending / budget_limit) * 100
                 
                 # Generate alerts based on thresholds
-                if usage_percentage >= 90:
+                if usage_percentage >= 100:
                     severity = 'critical'
-                    message = f"⚠️ You're on track to exceed {category} budget by {usage_percentage - 100:.0f}%"
+                    message = f"⚠️ Budget exceeded! You've spent {usage_percentage - 100:.0f}% over your {category} budget"
+                elif usage_percentage >= 90:
+                    severity = 'critical'
+                    message = f"⚠️ You're on track to exceed {category} budget (currently at {usage_percentage:.0f}%)"
                 elif usage_percentage >= 70:
                     severity = 'warning'
                     message = f"⚡ You've used {usage_percentage:.0f}% of your {category} budget"
@@ -570,7 +572,8 @@ class InsightsEngine:
                         'category': category,
                         'warning': 'Potential duplicate charge - verify with your bank'
                     })
-            except:
+            except Exception as e:
+                logger.debug(f"Duplicates detection failed: {e}")
                 pass  # Duplicates detection is optional
             
             return patterns
@@ -696,7 +699,8 @@ class InsightsEngine:
                         'message': "No budgets configured"
                     }
                     total_score += 15
-            except:
+            except Exception as e:
+                logger.debug(f"Budget adherence calculation failed: {e}")
                 score_breakdown['budget_adherence'] = {
                     'score': 15,
                     'max_score': 30,
@@ -757,7 +761,8 @@ class InsightsEngine:
                         'message': "Insufficient data"
                     }
                     total_score += 15
-            except:
+            except Exception as e:
+                logger.debug(f"Stability calculation failed: {e}")
                 score_breakdown['spending_stability'] = {
                     'score': 15,
                     'max_score': 30,

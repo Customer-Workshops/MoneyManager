@@ -37,16 +37,23 @@ class TestInsightsEngine:
     
     def test_detect_spending_anomalies_with_data(self, engine, mock_db_manager):
         """Test anomaly detection with sample data."""
+        from dateutil.relativedelta import relativedelta
+        
         # Mock data: 6 months of spending with anomaly in current month
         current_date = datetime.now()
         current_month = current_date.month
         current_year = current_date.year
         
+        # Calculate proper historical months
+        month_3_ago = (current_date - relativedelta(months=3))
+        month_2_ago = (current_date - relativedelta(months=2))
+        month_1_ago = (current_date - relativedelta(months=1))
+        
         # Historical: $100/month, Current: $250 (2.5x anomaly)
         mock_data = [
-            ("Groceries", current_year, current_month - 3, 100.0),
-            ("Groceries", current_year, current_month - 2, 100.0),
-            ("Groceries", current_year, current_month - 1, 100.0),
+            ("Groceries", month_3_ago.year, month_3_ago.month, 100.0),
+            ("Groceries", month_2_ago.year, month_2_ago.month, 100.0),
+            ("Groceries", month_1_ago.year, month_1_ago.month, 100.0),
             ("Groceries", current_year, current_month, 250.0),
         ]
         mock_db_manager.execute_query.return_value = mock_data
@@ -66,13 +73,17 @@ class TestInsightsEngine:
     
     def test_analyze_trends_with_increasing_trend(self, engine, mock_db_manager):
         """Test trend analysis with increasing trend."""
+        from dateutil.relativedelta import relativedelta
+        
         current_date = datetime.now()
+        month_1_ago = current_date - relativedelta(months=1)
+        month_2_ago = current_date - relativedelta(months=2)
         
         # Increasing trend: $100 -> $150 -> $200
         mock_data = [
             ("Dining", current_date.year, current_date.month, 200.0),
-            ("Dining", current_date.year, current_date.month - 1, 150.0),
-            ("Dining", current_date.year, current_date.month - 2, 100.0),
+            ("Dining", month_1_ago.year, month_1_ago.month, 150.0),
+            ("Dining", month_2_ago.year, month_2_ago.month, 100.0),
         ]
         mock_db_manager.execute_query.return_value = mock_data
         
