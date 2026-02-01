@@ -14,7 +14,7 @@ import os
 import logging
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, date
 
 import duckdb
 from dotenv import load_dotenv
@@ -133,6 +133,21 @@ class DatabaseManager:
         ]
         
         try:
+            # 1. Check for schema compatibility (Simple migration check)
+            try:
+                # Check if transactions table exists and has 'category_id'
+                result = self._connection.execute("PRAGMA table_info(transactions)").fetchall()
+                if result:
+                    columns = [r[1] for r in result]
+                    if 'category_id' not in columns:
+                        logger.warning("Old schema detected! Dropping tables for Realbyte upgrade...")
+                        self._connection.execute("DROP TABLE IF EXISTS transactions")
+                        self._connection.execute("DROP TABLE IF EXISTS categories")
+                        self._connection.execute("DROP TABLE IF EXISTS accounts")
+            except Exception as e:
+                logger.warning(f"Schema check warning: {e}")
+
+            # 2. Run Schema Statements
             for statement in schema_statements:
                 self._connection.execute(statement)
             
