@@ -15,6 +15,7 @@ from src.goals import (
     GOAL_TYPES, create_goal, add_contribution, get_all_goals,
     get_goal_by_id, get_goal_contributions, update_goal, delete_goal
 )
+from src.ui.utils import get_goal_icon
 
 logger = logging.getLogger(__name__)
 
@@ -449,25 +450,3 @@ def render_goals_analytics():
     )
     fig_timeline.update_yaxes(autorange="reversed")
     st.plotly_chart(fig_timeline, use_container_width=True)
-
-
-def get_goal_icon(goal_type: str) -> str:
-    """
-    Get emoji icon for goal type.
-    
-    Args:
-        goal_type: Goal type
-    
-    Returns:
-        Emoji icon
-    """
-    icons = {
-        "Emergency Fund": "🚨",
-        "Vacation/Travel": "✈️",
-        "New Car/Bike": "🚗",
-        "Home Down Payment": "🏠",
-        "Education": "🎓",
-        "Retirement": "🏖️",
-        "Custom": "🎯"
-    }
-    return icons.get(goal_type, "🎯")

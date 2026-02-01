@@ -13,7 +13,7 @@ import logging
 from typing import Dict, Any
 
 from src.database import db_manager
-from src.ui.utils import get_type_icon
+from src.ui.utils import get_type_icon, get_goal_icon
 from src.goals import get_top_goals
 
 logger = logging.getLogger(__name__)
@@ -519,28 +519,6 @@ def render_goals_overview():
     except Exception as e:
         logger.error(f"Failed to render goals overview: {e}")
         st.error("Failed to load goals overview")
-
-
-def get_goal_icon(goal_type: str) -> str:
-    """
-    Get emoji icon for goal type.
-    
-    Args:
-        goal_type: Goal type
-    
-    Returns:
-        Emoji icon
-    """
-    icons = {
-        "Emergency Fund": "🚨",
-        "Vacation/Travel": "✈️",
-        "New Car/Bike": "🚗",
-        "Home Down Payment": "🏠",
-        "Education": "🎓",
-        "Retirement": "🏖️",
-        "Custom": "🎯"
-    }
-    return icons.get(goal_type, "🎯")
 
 
 def render_dashboard_page():

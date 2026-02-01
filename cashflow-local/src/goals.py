@@ -7,7 +7,7 @@ milestone detection, and savings projections.
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from src.database import db_manager
@@ -409,6 +409,3 @@ def get_top_goals(limit: int = 3) -> List[Dict[str, Any]]:
     """
     all_goals = get_all_goals()
     return all_goals[:limit]
-
-
-from datetime import timedelta
