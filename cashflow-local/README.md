@@ -8,6 +8,14 @@
 
 ## 🆕 What's New (February 2026)
 
+### Bill Reminders & Payment Alerts 🔔
+- 🔔 **Bill Management:** Add and track recurring bills (Rent, Utilities, Subscriptions, Insurance, etc.)
+- ⏰ **Smart Reminders:** Get notified before bills are due (customizable reminder days)
+- 📅 **Recurrence Support:** Handle monthly, quarterly, half-yearly, and yearly bills
+- 💳 **Payment Tracking:** Mark bills as paid and view payment history
+- 🚨 **Overdue Alerts:** Dashboard alerts for overdue bills
+- 📊 **Dashboard Integration:** See upcoming bills and total monthly bill amount at a glance
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
@@ -80,6 +88,14 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🔔 **Bill Reminders & Payment Alerts**
+- **Bill Types:** Support for Rent, Utilities (Electricity, Water, Gas), Internet/Mobile, Subscriptions (Netflix, Spotify), Insurance, Loan EMIs, Credit Cards
+- **Recurrence Patterns:** One-time, Monthly, Quarterly, Half-yearly, Yearly
+- **Smart Reminders:** Configurable reminder days (1-30 days before due date)
+- **Payment Tracking:** Mark bills as paid, view payment history, on-time payment rate
+- **Dashboard Alerts:** Upcoming bills widget and overdue bill alerts on dashboard
+- **Auto-Recurring:** Automatically creates next bill when recurring bills are paid
+
 ---
 
 ## 📁 Project Structure
@@ -99,11 +115,13 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── bills.py           # Bill reminders and payment tracking
 │   └── ui/
 │       ├── upload_page.py      # File upload interface
 │       ├── dashboard_page.py   # KPIs and charts
 │       ├── transactions_page.py # Transaction table with editing
-│       └── budgets_page.py     # Budget configuration
+│       ├── budgets_page.py     # Budget configuration
+│       └── bills_page.py       # Bill reminders management
 └── tests/
     ├── test_deduplication.py
     ├── test_parsers.py
@@ -226,6 +244,14 @@ pytest tests/ -v
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 5. Manage Bill Reminders
+1. Navigate to **🔔 Bills**
+2. Add recurring bills with due dates and amounts
+3. Set reminder preferences (days before due date)
+4. Mark bills as paid when completed
+5. View upcoming bills, overdue alerts, and payment history
+6. Monitor total bills for the month on dashboard
 
 ---
 

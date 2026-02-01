@@ -74,10 +74,12 @@ class DatabaseManager:
         1. transactions: Core fact table with hash-based deduplication
         2. category_rules: Keyword-to-category mappings
         3. budgets: Monthly spending limits per category
+        4. bills: Bill reminders and payment tracking
         
         Indexes:
         - idx_hash: O(1) duplicate detection
         - idx_date: Temporal queries (monthly aggregations)
+        - idx_bills_due_date: Bill reminder queries
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
@@ -141,16 +143,28 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
-            # Saved searches for frequently used filters
+            # Bills tracking for reminders and payment alerts
             """
-            CREATE SEQUENCE IF NOT EXISTS seq_saved_searches_id START 1;
-            CREATE TABLE IF NOT EXISTS saved_searches (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_saved_searches_id'),
+            CREATE SEQUENCE IF NOT EXISTS seq_bills_id START 1;
+            CREATE TABLE IF NOT EXISTS bills (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_bills_id'),
                 name VARCHAR(100) NOT NULL,
-                filter_config TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                bill_type VARCHAR(50) NOT NULL,
+                amount DECIMAL(10, 2) NOT NULL,
+                due_date DATE NOT NULL,
+                recurrence VARCHAR(20) NOT NULL,
+                reminder_days INTEGER DEFAULT 3,
+                status VARCHAR(20) DEFAULT 'pending',
+                notes TEXT,
+                last_paid_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            """
+            """,
+            # Index for due date queries (upcoming bills, overdue bills)
+            "CREATE INDEX IF NOT EXISTS idx_bills_due_date ON bills(due_date)",
+            # Index for status queries (pending, paid, overdue)
+            "CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status)"
         ]
         
         try:
