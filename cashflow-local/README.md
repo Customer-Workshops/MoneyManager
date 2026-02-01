@@ -8,6 +8,14 @@
 
 ## 🆕 What's New (February 2026)
 
+### 🏦 Multi-Account Support
+- ✨ **Track Multiple Accounts:** Manage all your bank accounts, credit cards, and digital wallets in one place
+- 💳 **5 Account Types:** Savings, Checking, Credit Card, Digital Wallet, and Cash
+- 📊 **Account Filtering:** View transactions and analytics per account or consolidated across all accounts
+- 💰 **Net Worth Dashboard:** See your total financial picture with automatic balance calculations
+- 🎯 **Account Assignment:** Choose which account to assign during transaction upload
+- ⚙️ **Full Account Management:** Add, edit, delete accounts with a dedicated management interface
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
@@ -80,6 +88,25 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🏦 **Multi-Account Support** ⭐ NEW
+- **Track Multiple Accounts:** Manage unlimited bank accounts, credit cards, and wallets
+- **Account Types Supported:**
+  - 💳 Savings Account
+  - 💳 Checking/Current Account
+  - 💳 Credit Card
+  - 📱 Digital Wallet (PayTM, PhonePe, GPay)
+  - 💵 Cash
+- **Features:**
+  - Add/Edit/Delete accounts with custom names and types
+  - Set initial account balances
+  - Assign transactions to specific accounts during upload
+  - Account-specific filtering in dashboard and transactions page
+  - Consolidated "All Accounts" view for complete financial picture
+  - **Net Worth Calculation:** Automatic sum across all accounts
+  - **Account Balance Tracking:** Real-time balance calculation from transactions
+  - Account badges and color coding in transaction lists
+- **Account Management Page:** Dedicated interface for managing all your financial accounts
+
 ---
 
 ## 📁 Project Structure
@@ -103,6 +130,7 @@ cashflow-local/
 │       ├── upload_page.py      # File upload interface
 │       ├── dashboard_page.py   # KPIs and charts
 │       ├── transactions_page.py # Transaction table with editing
+│       ├── accounts_page.py    # Account management interface
 │       └── budgets_page.py     # Budget configuration
 └── tests/
     ├── test_deduplication.py
@@ -206,23 +234,33 @@ pytest tests/ -v
 
 ## 📊 Usage Guide
 
-### 1. Upload Bank Statements
+### 1. Manage Accounts
+1. Navigate to **🏦 Accounts** page
+2. Add your financial accounts (bank accounts, credit cards, wallets)
+3. Set initial balances for each account
+4. Edit or delete accounts as needed
+5. View your total net worth across all accounts
+
+### 2. Upload Bank Statements
 1. Navigate to **📤 Upload** page
-2. Drag-and-drop CSV/PDF files
-3. View processing status and duplicate statistics
+2. Select which account the transactions belong to
+3. Drag-and-drop CSV/PDF files
+4. View processing status and duplicate statistics
 
-### 2. Review Dashboard
+### 3. Review Dashboard
 1. Navigate to **📊 Dashboard**
-2. View KPIs and visualizations
-3. Monitor budget vs. actual spending
+2. Select an account or view "All Accounts" for consolidated view
+3. View KPIs and visualizations filtered by account
+4. Monitor budget vs. actual spending
 
-### 3. Manage Transactions
+### 4. Manage Transactions
 1. Navigate to **💳 Transactions**
-2. Use filters to find specific transactions
-3. Bulk edit categories
-4. Save edits as permanent rules
+2. Use filters (date, category, account) to find specific transactions
+3. View which account each transaction belongs to
+4. Bulk edit categories
+5. Save edits as permanent rules
 
-### 4. Configure Budgets
+### 5. Configure Budgets
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
