@@ -42,9 +42,8 @@ def render_transactions_page():
     st.divider()
     
     # Filters
-    with st.expander("🔍 Advanced Filters", expanded=True):
-        # Row 1: Date and Amount filters
-        col1, col2, col3 = st.columns(3)
+    with st.expander("🔍 Filters", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             # Date range presets
@@ -127,8 +126,19 @@ def render_transactions_page():
                 help="Filter by multiple categories (leave empty for all)"
             )
         
-        with col5:
-            # Search with advanced options
+        with col3:
+            # Account filter
+            accounts = db_manager.get_all_accounts()
+            account_options = ["All Accounts"] + [f"{acc['name']} ({acc['type']})" for acc in accounts]
+            account_mapping = {f"{acc['name']} ({acc['type']})": acc['id'] for acc in accounts}
+            selected_account = st.selectbox(
+                "Account",
+                options=account_options,
+                help="Filter by account"
+            )
+        
+        with col4:
+            # Search
             search_query = st.text_input(
                 "Search Description/Merchant",
                 placeholder="e.g., Starbucks, Amazon",
@@ -202,18 +212,13 @@ def render_transactions_page():
     
     # Fetch transactions
     try:
-        # Base query with tag support
-        if selected_tags:
-            query = """
-                SELECT DISTINCT t.id, t.transaction_date, t.description, t.amount, t.type, t.category 
-                FROM transactions t
-                JOIN transaction_tags tt ON t.id = tt.transaction_id
-                JOIN tags tg ON tt.tag_id = tg.id
-                WHERE 1=1
-            """
-        else:
-            query = "SELECT id, transaction_date, description, amount, type, category FROM transactions WHERE 1=1"
-        
+        query = """
+            SELECT t.id, t.transaction_date, t.description, t.amount, t.type, t.category, 
+                   COALESCE(a.name, 'Unassigned') as account_name
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE 1=1
+        """
         params = []
         
         # Apply tags filter
@@ -227,44 +232,27 @@ def render_transactions_page():
         
         # Apply date filter
         if len(date_range) == 2:
-            prefix = "t." if selected_tags else ""
-            query += f" AND {prefix}transaction_date >= ? AND {prefix}transaction_date <= ?"
+            query += " AND t.transaction_date >= ? AND t.transaction_date <= ?"
             params.extend(date_range)
         
-        # Apply category filter (multi-select)
-        if selected_categories:
-            prefix = "t." if selected_tags else ""
-            placeholders = ", ".join(["?" for _ in selected_categories])
-            query += f" AND {prefix}category IN ({placeholders})"
-            params.extend(selected_categories)
+        # Apply category filter
+        if selected_category != "All":
+            query += " AND t.category = ?"
+            params.append(selected_category)
         
-        # Apply transaction type filter
-        if transaction_type:
-            prefix = "t." if selected_tags else ""
-            placeholders = ", ".join(["?" for _ in transaction_type])
-            query += f" AND {prefix}type IN ({placeholders})"
-            params.extend(transaction_type)
+        # Apply account filter
+        if selected_account != "All Accounts":
+            account_id = account_mapping.get(selected_account)
+            if account_id:
+                query += " AND t.account_id = ?"
+                params.append(account_id)
         
-        # Apply amount range filter
-        if min_amount > 0:
-            prefix = "t." if selected_tags else ""
-            query += f" AND ABS({prefix}amount) >= ?"
-            params.append(min_amount)
-        
-        if max_amount > 0:
-            prefix = "t." if selected_tags else ""
-            query += f" AND ABS({prefix}amount) <= ?"
-            params.append(max_amount)
-        
-        # For fuzzy/regex search, we'll do post-processing
-        # For exact search, use SQL LIKE
-        if search_query and not use_fuzzy and not use_regex:
-            prefix = "t." if selected_tags else ""
-            query += f" AND LOWER({prefix}description) LIKE ?"
+        # Apply search filter
+        if search_query:
+            query += " AND LOWER(t.description) LIKE ?"
             params.append(f"%{search_query.lower()}%")
         
-        prefix = "t." if selected_tags else ""
-        query += f" ORDER BY {prefix}transaction_date DESC LIMIT 1000"
+        query += " ORDER BY t.transaction_date DESC LIMIT 500"
         
         results = db_manager.execute_query(query, tuple(params) if params else None)
         
@@ -275,7 +263,7 @@ def render_transactions_page():
         # Convert to DataFrame
         df = pd.DataFrame(
             results,
-            columns=['id', 'transaction_date', 'description', 'amount', 'type', 'category']
+            columns=['id', 'transaction_date', 'description', 'amount', 'type', 'category', 'account_name']
         )
         
         # Apply fuzzy or regex search post-processing if needed
@@ -378,6 +366,7 @@ def render_transactions_page():
                 "description": st.column_config.TextColumn("Description", disabled=True, width="large"),
                 "amount": st.column_config.TextColumn("Amount", disabled=True),
                 "type": st.column_config.TextColumn("Type", disabled=True),
+                "account_name": st.column_config.TextColumn("Account", disabled=True),
                 "category": st.column_config.SelectboxColumn(
                     "Category",
                     options=all_categories,

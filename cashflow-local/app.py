@@ -16,7 +16,7 @@ from src.ui.upload_page import render_upload_page
 from src.ui.dashboard_page import render_dashboard_page
 from src.ui.transactions_page import render_transactions_page
 from src.ui.budgets_page import render_budgets_page
-from src.ui.bills_page import render_bills_page
+from src.ui.accounts_page import render_accounts_page
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +59,7 @@ def render_sidebar():
         # Navigation
         page = st.radio(
             "Navigation",
-            options=["📊 Dashboard", "📤 Upload", "💳 Transactions", "💰 Budgets", "🔔 Bills"],
+            options=["📊 Dashboard", "📤 Upload", "💳 Transactions", "🏦 Accounts", "💰 Budgets"],
             label_visibility="collapsed"
         )
         
@@ -102,6 +102,8 @@ def main():
         render_upload_page()
     elif selected_page == "💳 Transactions":
         render_transactions_page()
+    elif selected_page == "🏦 Accounts":
+        render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
     elif selected_page == "🔔 Bills":
