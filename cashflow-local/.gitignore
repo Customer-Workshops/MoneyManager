@@ -29,3 +29,6 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+
+# Test scripts
+test_bills_manual.py

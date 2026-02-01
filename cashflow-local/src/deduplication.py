@@ -129,7 +129,8 @@ def check_duplicates(df: pd.DataFrame, db_manager: DatabaseManager) -> Tuple[pd.
 def insert_transactions(
     df: pd.DataFrame,
     source_file_hash: str,
-    db_manager: DatabaseManager
+    db_manager: DatabaseManager,
+    account_id: int = None
 ) -> Dict[str, int]:
     """
     Insert new transactions into the database with deduplication.
@@ -143,6 +144,7 @@ def insert_transactions(
         df: DataFrame with normalized transaction data
         source_file_hash: MD5 hash of the uploaded file (for tracking)
         db_manager: Database connection manager
+        account_id: Account ID to associate with transactions (optional)
     
     Returns:
         Dictionary with stats: {
@@ -173,6 +175,10 @@ def insert_transactions(
             # Add source file hash and created timestamp
             new_df['source_file_hash'] = source_file_hash
             new_df['created_at'] = datetime.now()
+            
+            # Add account_id if provided
+            if account_id is not None:
+                new_df['account_id'] = account_id
             
             # Convert DataFrame to list of dicts for batch insert
             records = new_df.to_dict('records')
