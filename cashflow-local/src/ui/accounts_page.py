@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # Account type options with icons
 ACCOUNT_TYPES = {
     'Savings Account': '🏦',
-    'Checking Account': '💳',
+    'Checking Account': '💰',
     'Credit Card': '💳',
     'Digital Wallet': '📱',
     'Cash': '💵'

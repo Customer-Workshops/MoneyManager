@@ -96,6 +96,8 @@ class DatabaseManager:
             )
             """,
             # Transactions table with deduplication hash
+            # Note: Foreign key constraint enforces referential integrity
+            # Account deletion is handled manually to set account_id to NULL
             """
             CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
@@ -435,7 +437,8 @@ class DatabaseManager:
             account_id: Account ID
         
         Note:
-            This will set account_id to NULL for all associated transactions
+            Manually sets account_id to NULL for all associated transactions
+            before deleting the account to preserve transaction history
         """
         try:
             # First, update transactions to remove account association
