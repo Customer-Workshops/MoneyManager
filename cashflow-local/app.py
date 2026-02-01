@@ -16,8 +16,7 @@ from src.ui.upload_page import render_upload_page
 from src.ui.dashboard_page import render_dashboard_page
 from src.ui.transactions_page import render_transactions_page
 from src.ui.budgets_page import render_budgets_page
-from src.ui.accounts_page import render_accounts_page
-from src.ui.reconciliation_page import render_reconciliation_page
+from src.ui.insights_page import render_insights_page
 
 # Configure logging
 logging.basicConfig(
@@ -91,7 +90,7 @@ def render_sidebar():
         # Navigation
         page = st.radio(
             "Navigation",
-            options=["📊 Dashboard", "📤 Upload", "💳 Transactions", "💰 Budgets", "🏦 Accounts", "⚖️ Reconciliation"],
+            options=["📊 Dashboard", "🤖 AI Insights", "📤 Upload", "💳 Transactions", "💰 Budgets"],
             label_visibility="collapsed"
         )
         
@@ -111,8 +110,7 @@ def render_sidebar():
         - 🤖 Smart categorization
         - 📊 Visual analytics
         - 💰 Budget tracking
-        - 🏦 Account management
-        - ⚖️ Balance reconciliation
+        - 🤖 AI-powered insights
         """)
         
         st.markdown("---")
@@ -136,6 +134,8 @@ def main():
     # Render selected page
     if selected_page == "📊 Dashboard":
         render_dashboard_page()
+    elif selected_page == "🤖 AI Insights":
+        render_insights_page()
     elif selected_page == "📤 Upload":
         render_upload_page()
     elif selected_page == "💳 Transactions":

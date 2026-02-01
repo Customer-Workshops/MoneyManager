@@ -8,6 +8,15 @@
 
 ## 🆕 What's New (February 2026)
 
+### 🤖 AI-Powered Smart Insights (NEW!)
+- **Financial Health Score:** Get a 0-100 score rating your financial health with detailed breakdowns
+- **Spending Anomalies:** Automatically detect unusual spending patterns using Z-score analysis
+- **Trend Analysis:** 3-month trend detection to identify increasing/decreasing spending by category
+- **Predictions:** End-of-month spending forecasts based on current trends
+- **Budget Alerts:** Smart warnings when approaching or exceeding budget limits
+- **Savings Opportunities:** AI identifies recurring subscriptions and high-spending areas
+- **Pattern Detection:** Find recurring transactions, potential duplicates, and seasonal patterns
+- **Top 3 Tips:** Actionable recommendations prioritized by impact
 ### Tax Category Tagging & ITR Filing Support 🆕
 - 📋 **Indian Tax Categories:** Tag transactions with 80C, 80D, 80E, 80G, 80TTA, HRA, Section 24, and Business Expenses
 - 🏷️ **Multi-tag Support:** Single transaction can have multiple tax categories
@@ -112,17 +121,42 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
-### 🏦 **Account Management & Reconciliation**
-- Create multiple bank accounts (Checking, Savings, Credit Card, etc.)
-- Set opening balances and track current balance
-- Multi-currency support (INR, USD, EUR, GBP, JPY)
-- Monthly balance reconciliation against bank statements
-- Variance detection and analysis
-- Duplicate transaction detection
-- Balance history timeline visualization
-- Comprehensive reconciliation reports
-
-📘 **[Full Reconciliation Guide](docs/RECONCILIATION.md)**
+### 🤖 **AI-Powered Insights**
+- **Financial Health Score (0-100)** based on savings, budget adherence, and spending stability
+- **Anomaly Detection:** Z-score analysis identifies unusual spending patterns
+- **Trend Analysis:** Track 3-month spending trends by category
+- **Spending Predictions:** Forecast end-of-month spending based on current pace
+- **Budget Alerts:** Critical and warning alerts for budget overruns
+- **Savings Opportunities:** Identify high-cost subscriptions and overspending categories
+- **Pattern Recognition:** Detect recurring transactions and potential duplicates
+- **Smart Recommendations:** Top 3 actionable tips personalized to your spending
+### 📋 **Tax Category Tagging & ITR Filing Support (NEW)**
+- **Indian Tax Categories:** 80C, 80D, 80E, 80G, 80TTA, HRA, Section 24, Business Expenses
+- **Multi-tag Support:** Tag transactions with multiple tax categories
+- **Tax Limits & Tracking:** Track utilization against annual limits (e.g., 80C: ₹1.5L)
+- **Tax Summary Dashboard:** View YTD deductions and estimated tax savings
+- **Category-wise Reports:** Detailed transaction lists by tax category
+- **Excel Export:** Generate ITR-ready reports for CA/tax filing
+- **Financial Year Support:** Automatic FY detection (April-March)
+- **Utilization Alerts:** Color-coded progress bars (🟢🟡🔴) for limit tracking
+### 🏦 **Multi-Account Support** ⭐ NEW
+- **Track Multiple Accounts:** Manage unlimited bank accounts, credit cards, and wallets
+- **Account Types Supported:**
+  - 💳 Savings Account
+  - 💳 Checking/Current Account
+  - 💳 Credit Card
+  - 📱 Digital Wallet (PayTM, PhonePe, GPay)
+  - 💵 Cash
+- **Features:**
+  - Add/Edit/Delete accounts with custom names and types
+  - Set initial account balances
+  - Assign transactions to specific accounts during upload
+  - Account-specific filtering in dashboard and transactions page
+  - Consolidated "All Accounts" view for complete financial picture
+  - **Net Worth Calculation:** Automatic sum across all accounts
+  - **Account Balance Tracking:** Real-time balance calculation from transactions
+  - Account badges and color coding in transaction lists
+- **Account Management Page:** Dedicated interface for managing all your financial accounts
 
 ---
 
@@ -145,14 +179,13 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
-│   ├── reconciliation.py  # Balance reconciliation & variance detection
+│   ├── insights.py        # AI-powered insights engine
 │   └── ui/
-│       ├── upload_page.py         # File upload interface
-│       ├── dashboard_page.py      # KPIs and charts
-│       ├── transactions_page.py   # Transaction table with editing
-│       ├── budgets_page.py        # Budget configuration
-│       ├── accounts_page.py       # Account management
-│       └── reconciliation_page.py # Reconciliation workflow
+│       ├── upload_page.py       # File upload interface
+│       ├── dashboard_page.py    # KPIs and charts
+│       ├── transactions_page.py # Transaction table with editing
+│       ├── budgets_page.py     # Budget configuration
+│       └── insights_page.py    # AI insights dashboard
 └── tests/
     ├── test_auth.py            # Authentication tests
     ├── test_workspace.py       # Workspace management tests
@@ -245,6 +278,7 @@ pytest tests/ -v
 - **Frontend:** Streamlit (rapid data visualization)
 - **Database:** DuckDB (local OLAP, columnar storage)
 - **Data Processing:** Pandas + Polars
+- **AI/ML:** NumPy + scikit-learn (insights & anomaly detection)
 - **PDF Parsing:** pdfplumber
 - **Containerization:** Docker (multi-stage build, non-root user)
 
@@ -300,15 +334,14 @@ pytest tests/ -v
 2. Add category budget limits
 3. View budget compliance on dashboard
 
-### 5. Manage Accounts & Reconcile
-1. Navigate to **🏦 Accounts**
-2. Add your bank accounts with opening balances
-3. Go to **⚖️ Reconciliation**
-4. Compare app balance with bank statements
-5. Detect duplicates and resolve variances
-6. Mark transactions as reconciled
-
-For detailed reconciliation instructions, see [Reconciliation Guide](docs/RECONCILIATION.md)
+### 5. Get AI-Powered Insights 🤖
+1. Navigate to **🤖 AI Insights**
+2. View your Financial Health Score (0-100)
+3. Review Top 3 actionable tips
+4. Explore spending anomalies and trends
+5. Check spending predictions
+6. Discover savings opportunities
+7. Analyze recurring patterns
 
 ---
 
