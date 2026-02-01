@@ -180,7 +180,7 @@ def render_transaction_form(location: str = "inline"):
             else:
                 # Save transaction
                 success, message = save_manual_transaction(
-                    date=transaction_date,
+                    transaction_date=transaction_date,
                     description=description,
                     amount=amount,
                     transaction_type=transaction_type,

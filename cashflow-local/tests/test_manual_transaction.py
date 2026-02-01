@@ -62,7 +62,7 @@ def test_validate_transaction_invalid_description():
         amount=100.0
     )
     assert is_valid is False
-    assert "3 characters" in error.lower()
+    assert "at least 3 characters" in error.lower()
 
 
 def test_validate_transaction_invalid_amount():
