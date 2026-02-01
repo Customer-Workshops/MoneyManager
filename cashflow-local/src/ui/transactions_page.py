@@ -12,6 +12,7 @@ import logging
 from src.database import db_manager
 from src.categorization import category_engine
 from src.ui.utils import get_type_icon
+from src.ui.components.transaction_form import render_transaction_form
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +22,19 @@ def render_transactions_page():
     Render the transactions management page.
     
     Features:
+    - Manual transaction entry form
     - Searchable transaction table
     - Filters (date range, category, amount)
     - Bulk category editing
     - Save-as-rule functionality
     """
     st.header("💳 Transactions")
+    
+    # Manual transaction entry form at top
+    with st.expander("➕ Add New Transaction", expanded=False):
+        render_transaction_form()
+    
+    st.divider()
     
     # Filters
     with st.expander("🔍 Filters", expanded=False):
