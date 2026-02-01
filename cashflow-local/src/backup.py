@@ -65,28 +65,49 @@ class BackupManager:
                 "tables": {}
             }
             
-            # Export transactions
+            # Export transactions (use fetchall for better memory efficiency than fetchdf)
             transactions_query = "SELECT * FROM transactions ORDER BY id"
             with db_manager.get_connection() as conn:
-                transactions_df = conn.execute(transactions_query).fetchdf()
-                # Convert dates to strings for JSON serialization
-                transactions_df['transaction_date'] = transactions_df['transaction_date'].astype(str)
-                transactions_df['created_at'] = transactions_df['created_at'].astype(str)
-                backup_data['tables']['transactions'] = transactions_df.to_dict('records')
+                # Get column names
+                result = conn.execute(transactions_query)
+                columns = [desc[0] for desc in result.description]
+                # Fetch rows in batches to avoid loading all at once
+                transactions = []
+                for row in result.fetchall():
+                    record = dict(zip(columns, row))
+                    # Convert dates to strings for JSON serialization
+                    if 'transaction_date' in record and record['transaction_date']:
+                        record['transaction_date'] = str(record['transaction_date'])
+                    if 'created_at' in record and record['created_at']:
+                        record['created_at'] = str(record['created_at'])
+                    transactions.append(record)
+                backup_data['tables']['transactions'] = transactions
             
             # Export category_rules
             rules_query = "SELECT * FROM category_rules ORDER BY id"
             with db_manager.get_connection() as conn:
-                rules_df = conn.execute(rules_query).fetchdf()
-                rules_df['created_at'] = rules_df['created_at'].astype(str)
-                backup_data['tables']['category_rules'] = rules_df.to_dict('records')
+                result = conn.execute(rules_query)
+                columns = [desc[0] for desc in result.description]
+                rules = []
+                for row in result.fetchall():
+                    record = dict(zip(columns, row))
+                    if 'created_at' in record and record['created_at']:
+                        record['created_at'] = str(record['created_at'])
+                    rules.append(record)
+                backup_data['tables']['category_rules'] = rules
             
             # Export budgets
             budgets_query = "SELECT * FROM budgets ORDER BY id"
             with db_manager.get_connection() as conn:
-                budgets_df = conn.execute(budgets_query).fetchdf()
-                budgets_df['created_at'] = budgets_df['created_at'].astype(str)
-                backup_data['tables']['budgets'] = budgets_df.to_dict('records')
+                result = conn.execute(budgets_query)
+                columns = [desc[0] for desc in result.description]
+                budgets = []
+                for row in result.fetchall():
+                    record = dict(zip(columns, row))
+                    if 'created_at' in record and record['created_at']:
+                        record['created_at'] = str(record['created_at'])
+                    budgets.append(record)
+                backup_data['tables']['budgets'] = budgets
             
             # Calculate statistics
             stats = {
