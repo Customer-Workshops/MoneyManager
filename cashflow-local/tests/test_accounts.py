@@ -110,6 +110,14 @@ class TestAccountManagement:
 class TestTransactionAccountAssociation:
     """Test suite for transaction-account relationships."""
     
+    def setup_method(self):
+        """Clean up before each test."""
+        try:
+            db_manager.execute_query("DELETE FROM transactions")
+            db_manager.execute_query("DELETE FROM accounts")
+        except Exception:
+            pass
+    
     def test_insert_transaction_with_account(self):
         """Test inserting transactions with account association."""
         # Create account
