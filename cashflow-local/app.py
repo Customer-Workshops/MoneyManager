@@ -78,6 +78,7 @@ def render_sidebar():
         - 🤖 Smart categorization
         - 📊 Visual analytics
         - 💰 Budget tracking
+        - 💾 Backup & Restore
         """)
         
         st.markdown("---")
@@ -105,6 +106,8 @@ def main():
         render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
+    elif selected_page == "💾 Backup & Restore":
+        render_backup_page()
 
 
 if __name__ == "__main__":

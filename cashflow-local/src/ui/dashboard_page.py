@@ -14,6 +14,7 @@ from typing import Dict, Any
 
 from src.database import db_manager
 from src.ui.utils import get_type_icon
+from src.ui.components.transaction_form import render_transaction_form
 
 logger = logging.getLogger(__name__)
 
