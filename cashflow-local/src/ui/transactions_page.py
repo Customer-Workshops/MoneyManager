@@ -18,6 +18,9 @@ from src.search_utils import fuzzy_match, regex_search, filter_by_search
 
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_FUZZY_THRESHOLD = 0.6
+
 
 def render_transactions_page():
     """
@@ -151,9 +154,9 @@ def render_transactions_page():
             with col5b:
                 use_regex = st.checkbox("🔧 Regex", help="Use regular expressions for advanced patterns")
             with col5c:
-                fuzzy_threshold = 0.6
+                fuzzy_threshold = DEFAULT_FUZZY_THRESHOLD
                 if use_fuzzy:
-                    fuzzy_threshold = st.slider("Similarity", 0.5, 1.0, 0.6, 0.05, key="fuzzy_slider")
+                    fuzzy_threshold = st.slider("Similarity", 0.5, 1.0, DEFAULT_FUZZY_THRESHOLD, 0.05, key="fuzzy_slider")
         
         # Row 3: Tags filter
         st.markdown("---")
@@ -180,7 +183,7 @@ def render_transactions_page():
             if save_search_name and st.button("Save Search"):
                 # Build filter config
                 filter_config = {
-                    "date_preset": date_preset if 'date_preset' in locals() else "Custom",
+                    "date_preset": date_preset,
                     "date_range": [str(date_range[0]), str(date_range[1])] if len(date_range) == 2 else [],
                     "categories": selected_categories,
                     "transaction_type": transaction_type,
@@ -188,8 +191,8 @@ def render_transactions_page():
                     "max_amount": max_amount,
                     "search_query": search_query,
                     "tags": selected_tags,
-                    "use_fuzzy": use_fuzzy if 'use_fuzzy' in locals() else False,
-                    "use_regex": use_regex if 'use_regex' in locals() else False
+                    "use_fuzzy": use_fuzzy,
+                    "use_regex": use_regex
                 }
                 
                 if db_manager.save_search(save_search_name, json.dumps(filter_config)):
@@ -292,13 +295,20 @@ def render_transactions_page():
             # Convert to dict for filtering
             transactions = df.to_dict('records')
             
+            # Determine search mode
+            if use_fuzzy:
+                search_mode = 'fuzzy'
+            elif use_regex:
+                search_mode = 'regex'
+            else:
+                search_mode = 'exact'
+            
             # Apply search filter
-            search_mode = 'fuzzy' if use_fuzzy else 'regex' if use_regex else 'exact'
             filtered_transactions = filter_by_search(
                 transactions,
                 search_query,
                 search_mode,
-                fuzzy_threshold if use_fuzzy else 0.6
+                fuzzy_threshold if use_fuzzy else DEFAULT_FUZZY_THRESHOLD
             )
             
             # Convert back to DataFrame
