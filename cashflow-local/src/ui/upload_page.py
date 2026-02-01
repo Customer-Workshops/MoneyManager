@@ -15,6 +15,7 @@ from src.deduplication import insert_transactions
 from src.categorization import category_engine
 from src.database import db_manager
 from src.ui.utils import get_type_icon
+from src.memory_monitor import memory_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ def render_upload_page():
             progress_bar = st.progress(0, text=f"Processing {uploaded_file.name}...")
             status_text = st.empty()
             
+            tmp_path = None
             try:
                 # Step 1: Compute file hash
                 progress_bar.progress(10, text="Computing file hash...")
@@ -130,9 +132,6 @@ def render_upload_page():
                 progress_bar.progress(80, text="Inserting into database...")
                 stats = insert_transactions(df, file_hash, db_manager, account_id=selected_account_id)
                 
-                # Clean up temp file
-                os.unlink(tmp_path)
-                
                 # Update totals
                 total_inserted += stats['inserted']
                 total_duplicates += stats['duplicates']
@@ -159,6 +158,16 @@ def render_upload_page():
                 progress_bar.empty()
                 st.error(f"❌ Failed to process file: {str(e)}")
                 total_errors += 1
+            finally:
+                # Clean up temp file
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temp file {tmp_path}: {e}")
+                
+                # Log memory usage after processing
+                memory_monitor.log_memory_usage(f"After processing {uploaded_file.name}")
             
             st.divider()
         

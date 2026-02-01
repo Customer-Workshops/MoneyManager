@@ -19,6 +19,12 @@ from datetime import datetime, date
 import duckdb
 from dotenv import load_dotenv
 
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
 # Load environment variables
 load_dotenv()
 
@@ -984,5 +990,16 @@ class DatabaseManager:
             return []
 
 
-# Global instance (singleton)
-db_manager = DatabaseManager()
+# Global instance initialization
+# Use Streamlit's cache_resource for proper lifecycle management
+if HAS_STREAMLIT:
+    @st.cache_resource
+    def get_db_manager():
+        """Get cached database manager instance with automatic cleanup."""
+        manager = DatabaseManager()
+        return manager
+    
+    db_manager = get_db_manager()
+else:
+    # For non-Streamlit contexts (tests, scripts)
+    db_manager = DatabaseManager()

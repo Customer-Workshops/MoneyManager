@@ -48,6 +48,26 @@ def render_goals_list():
         st.info("📋 No goals yet. Create your first goal to start tracking!")
         return
     
+    # Clean up session state for deleted goals
+    current_goal_ids = {goal['id'] for goal in goals}
+    keys_to_delete = []
+    for key in st.session_state.keys():
+        if key.startswith(('show_contrib_form_', 'show_edit_form_', 'show_history_')):
+            # Extract goal ID from key
+            try:
+                parts = key.split('_')
+                if len(parts) > 0 and parts[-1]:  # Ensure there is a last part and it's not empty
+                    goal_id = int(parts[-1])
+                    if goal_id not in current_goal_ids:
+                        keys_to_delete.append(key)
+            except (ValueError, IndexError):
+                # Invalid key format, skip it
+                pass
+    
+    # Delete orphaned session state keys
+    for key in keys_to_delete:
+        del st.session_state[key]
+    
     # Display each goal in an expandable card
     for goal in goals:
         render_goal_card(goal)

@@ -32,3 +32,12 @@ Thumbs.db
 
 # Test scripts
 test_bills_manual.py
+
+# Test data files (large PDFs should not be in production builds)
+test_statement.pdf
+data/
+temp_logs.txt
+
+# Allow test fixtures
+!tests/fixtures/*.csv
+!tests/fixtures/*.pdf

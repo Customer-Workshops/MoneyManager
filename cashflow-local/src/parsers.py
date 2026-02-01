@@ -19,7 +19,6 @@ from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
-import polars as pl
 import pdfplumber
 
 logger = logging.getLogger(__name__)
