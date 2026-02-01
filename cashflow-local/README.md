@@ -8,6 +8,14 @@
 
 ## 🆕 What's New (February 2026)
 
+### Bill Reminders & Payment Alerts 🔔
+- 🔔 **Bill Management:** Add and track recurring bills (Rent, Utilities, Subscriptions, Insurance, etc.)
+- ⏰ **Smart Reminders:** Get notified before bills are due (customizable reminder days)
+- 📅 **Recurrence Support:** Handle monthly, quarterly, half-yearly, and yearly bills
+- 💳 **Payment Tracking:** Mark bills as paid and view payment history
+- 🚨 **Overdue Alerts:** Dashboard alerts for overdue bills
+- 📊 **Dashboard Integration:** See upcoming bills and total monthly bill amount at a glance
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations

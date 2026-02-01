@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 from src.database import db_manager
 from src.ui.utils import get_type_icon
-from src.ui.components.transaction_form import render_transaction_form
+from src.bills import bill_manager
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def get_kpis() -> Dict[str, Any]:
 
 def render_kpi_cards(kpis: Dict[str, Any]):
     """Render KPI metric cards."""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric(
@@ -115,6 +115,9 @@ def render_kpi_cards(kpis: Dict[str, Any]):
             delta=None,
             delta_color="normal"
         )
+    
+    with col5:
+        render_bills_summary_card()
 
 
 def render_income_expense_chart():
@@ -526,8 +529,8 @@ def render_dashboard_page():
     Render the main dashboard page.
     
     Displays:
-    - Manual transaction entry form (Quick Add)
-    - KPI metrics (Balance, Spend, Income, Savings Rate)
+    - KPI metrics (Balance, Spend, Income, Savings Rate, Bills)
+    - Overdue bills alert
     - Line chart: Income vs Expenses (Trend Analysis)
     - Donut chart: Spending by Category
     - Bar chart: Top Merchants/Payees
@@ -536,11 +539,8 @@ def render_dashboard_page():
     """
     st.header("📊 Financial Dashboard")
     
-    # Quick Add Transaction Form
-    with st.expander("➕ Quick Add Transaction", expanded=False):
-        render_transaction_form()
-    
-    st.divider()
+    # Overdue bills alert (if any)
+    render_overdue_bills_alert()
     
     # KPIs
     kpis = get_kpis()
