@@ -217,6 +217,8 @@ class PDFParser(StatementParser):
         """
         Parse PDF file and extract transaction tables.
         
+        Uses optimized settings for bank statements with dynamic header detection.
+        
         Returns:
             DataFrame with standard schema
         
@@ -226,68 +228,97 @@ class PDFParser(StatementParser):
         try:
             all_transactions = []
             
+            # Custom extraction settings optimized for bank statements
+            table_settings = {
+                "vertical_strategy": "text",
+                "horizontal_strategy": "text",
+                "snap_tolerance": 3,
+            }
+            
             with pdfplumber.open(self.file_path) as pdf:
                 logger.info(f"Opened PDF with {len(pdf.pages)} pages")
                 
                 for page_num, page in enumerate(pdf.pages, 1):
                     logger.debug(f"Processing page {page_num}")
                     
-                    # Extract tables from page
-                    tables = page.extract_tables()
+                    # Extract tables with custom settings
+                    tables = page.extract_tables(table_settings)
                     
                     if not tables:
                         logger.debug(f"Page {page_num}: No tables found")
                         continue
                     
-                    logger.info(f"Page {page_num}: Found {len(tables)} tables")
+                    logger.info(f"Page {page_num}: Found {len(tables)} table(s)")
                     
                     for table_idx, table in enumerate(tables):
-                        if not table or len(table) < 2:
-                            logger.debug(f"Page {page_num}, Table {table_idx}: Too few rows, skipping")
+                        if not table:
                             continue
                         
-                        logger.debug(f"Page {page_num}, Table {table_idx}: {len(table)} rows")
-                        
-                        # Clean table - remove None values and convert to strings
-                        cleaned_table = []
                         for row in table:
-                            cleaned_row = [str(cell).strip() if cell is not None else '' for cell in row]
-                            # Only keep rows that aren't all empty
-                            if any(cell for cell in cleaned_row):
-                                cleaned_table.append(cleaned_row)
-                        
-                        if len(cleaned_table) < 2:
-                            logger.debug(f"Page {page_num}, Table {table_idx}: No data after cleaning")
-                            continue
-                        
-                        # Try to parse this table
-                        try:
-                            # Use first row as header
-                            df_page = pd.DataFrame(cleaned_table[1:], columns=cleaned_table[0])
-                            logger.debug(f"Page {page_num}, Table {table_idx}: Columns = {list(df_page.columns)}")
+                            # Clean up row: remove newlines and None values
+                            cleaned_row = [
+                                cell.replace('\n', ' ').strip() if cell else ""
+                                for cell in row
+                            ]
                             
-                            parsed = self._parse_table(df_page)
-                            if not parsed.empty:
-                                logger.info(f"Page {page_num}, Table {table_idx}: Parsed {len(parsed)} transactions")
-                                all_transactions.append(parsed)
-                            else:
-                                logger.debug(f"Page {page_num}, Table {table_idx}: No valid transactions found")
-                        except Exception as e:
-                            logger.debug(f"Page {page_num}, Table {table_idx}: Failed to parse - {e}")
-                            continue
+                            # Skip empty rows
+                            if not any(cleaned_row):
+                                continue
+                            
+                            all_transactions.append(cleaned_row)
             
-            # Combine all pages
-            if all_transactions:
-                result = pd.concat(all_transactions, ignore_index=True)
-                logger.info(f"Successfully parsed {len(result)} total transactions from PDF")
+            if not all_transactions:
+                logger.warning("No data extracted from PDF")
+                return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(all_transactions)
+            logger.info(f"Extracted {len(df)} total rows from PDF")
+            
+            # Find and set header row
+            # Look for row containing "Date" (case-insensitive)
+            if not df.empty:
+                is_header_row = df[0].astype(str).str.contains("date", case=False, na=False)
+                
+                if is_header_row.any():
+                    # Use first header row as column names
+                    header_row_index = is_header_row.idxmax()
+                    df.columns = df.iloc[header_row_index]
+                    
+                    logger.info(f"Found header row at index {header_row_index}")
+                    logger.info(f"Columns: {list(df.columns)}")
+                    
+                    # Drop all header rows
+                    df = df[~is_header_row]
+                else:
+                    logger.warning("No header row with 'Date' found")
+                    return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+            
+            # Filter to only rows with valid dates (DD/MM/YYYY format)
+            # This removes "Opening Balance", page footers, etc.
+            date_col_name = df.columns[0] if len(df.columns) > 0 else None
+            if date_col_name:
+                df = df[df[date_col_name].astype(str).str.match(r'\d{2}/\d{2}/\d{4}', na=False)]
+                logger.info(f"After date filtering: {len(df)} transaction rows")
+            
+            if df.empty:
+                logger.warning("No valid transaction rows found after filtering")
+                return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+            
+            # Now parse the table using standard column detection
+            result = self._parse_table(df)
+            
+            if not result.empty:
+                logger.info(f"Successfully parsed {len(result)} transactions from PDF")
                 return result
             else:
-                logger.warning("No transactions found in PDF - tables may not match expected format")
-                logger.warning("PDF should contain tables with columns: Date, Description, Debit/Credit or Amount")
+                logger.warning("Parsed data but got empty result after normalization")
                 return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
         
         except Exception as e:
             logger.error(f"PDF parsing failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise
     
     def _parse_table(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -312,21 +343,33 @@ class PDFParser(StatementParser):
             debit_col = csv_parser._detect_column(df, 'debit')
             credit_col = csv_parser._detect_column(df, 'credit')
             
+            # Log what we found
+            logger.info(f"Column Detection Results:")
+            logger.info(f"  Available columns: {list(df.columns)}")
+            logger.info(f"  Date column: {date_col}")
+            logger.info(f"  Description column: {desc_col}")
+            logger.info(f"  Debit column: {debit_col}")
+            logger.info(f"  Credit column: {credit_col}")
+            
             if not date_col or not desc_col:
-                logger.debug(f"Table columns: {list(df.columns)}")
-                logger.debug(f"Missing required columns - Date: {date_col}, Description: {desc_col}")
+                logger.warning(f"Missing required columns!")
+                logger.warning(f"  Columns in table: {list(df.columns)}")
+                logger.warning(f"  Looking for Date: {csv_parser.COLUMN_MAPPINGS['date']}")
+                logger.warning(f"  Looking for Description: {csv_parser.COLUMN_MAPPINGS['description']}")
                 return pd.DataFrame()
             
             # Check for amount columns
             if not debit_col and not credit_col:
-                logger.debug("No debit/credit columns found, table may not be a transaction table")
+                logger.warning("No debit/credit columns found!")
+                logger.warning(f"  Looking for Debit: {csv_parser.COLUMN_MAPPINGS['debit']}")
+                logger.warning(f"  Looking for Credit: {csv_parser.COLUMN_MAPPINGS['credit']}")
                 return pd.DataFrame()
             
-            logger.debug(f"Matched columns - Date: {date_col}, Desc: {desc_col}, Debit: {debit_col}, Credit: {credit_col}")
+            logger.info(f"✅ Successfully matched all required columns")
             
             # Normalize
             result = pd.DataFrame()
-            result['transaction_date'] = pd.to_datetime(df[date_col], errors='coerce')
+            result['transaction_date'] = pd.to_datetime(df[date_col], errors='coerce', dayfirst=True)
             result['description'] = df[desc_col].astype(str).str.strip()
             
             # Process amounts
@@ -345,11 +388,13 @@ class PDFParser(StatementParser):
             result = result.dropna(subset=['transaction_date'])
             result = result[result['amount'] > 0].copy()
             
-            logger.debug(f"Parsed {len(result)} valid transactions from table")
+            logger.info(f"✅ Parsed {len(result)} valid transactions from table")
             return result
         
         except Exception as e:
-            logger.debug(f"Table parsing failed: {e}")
+            logger.error(f"Table parsing failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return pd.DataFrame()
 
 

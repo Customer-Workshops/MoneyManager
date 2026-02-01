@@ -87,6 +87,12 @@ def render_upload_page():
                 parser = create_parser(tmp_path)
                 df = parser.parse()
                 
+                # Debug: Show what was parsed
+                st.info(f"📋 Parsed {len(df)} transactions from file")
+                if len(df) > 0 and len(df) < 10:
+                    with st.expander("🔍 View Parsed Data"):
+                        st.dataframe(df)
+                
                 # Step 4: Categorize
                 progress_bar.progress(60, text="Categorizing transactions...")
                 df = category_engine.categorize_dataframe(df)
