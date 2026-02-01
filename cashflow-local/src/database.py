@@ -123,11 +123,15 @@ class DatabaseManager:
             CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
-                workspace_id INTEGER NOT NULL,
                 name VARCHAR NOT NULL,
-                account_type VARCHAR(50) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                currency VARCHAR(3) DEFAULT 'USD',
+                is_active BOOLEAN DEFAULT TRUE,
+                workspace_id INTEGER,
                 is_shared BOOLEAN DEFAULT TRUE,
                 owner_user_id INTEGER,
+                opening_balance DECIMAL(12, 2) DEFAULT 0,
+                opening_balance_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -655,13 +659,15 @@ class DatabaseManager:
             List of account dictionaries
         """
         try:
+            # Note: Removed workspace_id filter for now as auth is disabled
+            # In future: WHERE workspace_id = ?
             query = "SELECT id, name, type, currency, is_active FROM accounts ORDER BY name"
             results = self.execute_query(query)
             return [
                 {
                     "id": r[0],
                     "name": r[1],
-                    "type": r[2],
+                    "type": r[2],  # was r[2] mapped to type
                     "currency": r[3],
                     "is_active": bool(r[4])
                 }
