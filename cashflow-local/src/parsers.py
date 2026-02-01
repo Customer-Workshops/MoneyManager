@@ -58,10 +58,26 @@ class StatementParser(ABC):
         Returns:
             Tuple of (amount: float, type: str)
         """
-        if pd.notna(debit) and debit != 0:
-            return abs(float(debit)), 'Debit'
-        elif pd.notna(credit) and credit != 0:
-            return abs(float(credit)), 'Credit'
+        # Clean and convert debit
+        debit_clean = None
+        if debit is not None and str(debit).strip():
+            try:
+                debit_clean = float(str(debit).replace(',', '').strip())
+            except (ValueError, TypeError):
+                debit_clean = None
+        
+        # Clean and convert credit
+        credit_clean = None
+        if credit is not None and str(credit).strip():
+            try:
+                credit_clean = float(str(credit).replace(',', '').strip())
+            except (ValueError, TypeError):
+                credit_clean = None
+        
+        if debit_clean is not None and debit_clean != 0:
+            return abs(debit_clean), 'Debit'
+        elif credit_clean is not None and credit_clean != 0:
+            return abs(credit_clean), 'Credit'
         else:
             return 0.0, 'Unknown'
 
@@ -84,9 +100,9 @@ class CSVParser(StatementParser):
     COLUMN_MAPPINGS = {
         'date': ['date', 'trans date', 'transaction date', 'posted date', 'posting date', 'value date'],
         'description': ['description', 'memo', 'details', 'merchant', 'name', 'payee', 'particulars'],
-        'debit': ['debit', 'withdrawal', 'withdrawals', 'amount', 'dr'],
-        'credit': ['credit', 'deposit', 'deposits', 'cr'],
-        'balance': ['balance', 'running balance', 'available balance']
+        'debit': ['debit', 'withdrawal', 'withdrawals', 'amount', 'dr', 'drawals', 'drawals deposits b', 'cheque details with'],  # Split headers
+        'credit': ['credit', 'deposit', 'deposits', 'cr', 'posits', 'drawals deposits b'],  # 'drawals deposits b' can be both
+        'balance': ['balance', 'running balance', 'available balance', 'alance']
     }
     
     def __init__(self, file_path: str):
@@ -111,7 +127,13 @@ class CSVParser(StatementParser):
             Matched column name or None
         """
         possible_names = self.COLUMN_MAPPINGS.get(column_type, [])
-        df_columns_lower = {col.lower(): col for col in df.columns}
+        
+        # Filter out None and empty column names before creating lowercase mapping
+        df_columns_lower = {
+            col.lower(): col 
+            for col in df.columns 
+            if col is not None and str(col).strip()
+        }
         
         for possible_name in possible_names:
             if possible_name in df_columns_lower:
@@ -283,10 +305,29 @@ class PDFParser(StatementParser):
                 if is_header_row.any():
                     # Use first header row as column names
                     header_row_index = is_header_row.idxmax()
-                    df.columns = df.iloc[header_row_index]
+                    raw_headers = df.iloc[header_row_index].tolist()
+                    
+                    # Clean and join all header fragments into a single string
+                    # Then try to  identify column boundaries
+                    header_text = ' '.join([str(h).strip() for h in raw_headers if h and str(h).strip() and str(h) != 'None'])
                     
                     logger.info(f"Found header row at index {header_row_index}")
-                    logger.info(f"Columns: {list(df.columns)}")
+                    logger.info(f"Raw headers ({len(raw_headers)}): {raw_headers}")
+                    logger.info(f"Joined header text: '{header_text}'")
+                    
+                    # For Federal Bank, we expect: Date, Value Date, Particulars, Tran Type, Tran ID, 
+                    # Cheque Details, Withdrawals, Deposits, Balance, Dr/Cr
+                    # But extraction splits them. Solution: Use the raw column positions
+                    # and manually map based on known Federal Bank format
+                    
+                    cleaned_headers = []
+                    for i, h in enumerate(raw_headers):
+                        h_str = str(h).strip() if h and str(h) != 'None' else ''
+                        cleaned_headers.append(h_str)
+                    
+                    df.columns = cleaned_headers
+                    
+                    logger.info(f"Cleaned columns ({len(df.columns)}): {repr(cleaned_headers)}")
                     
                     # Drop all header rows
                     df = df[~is_header_row]

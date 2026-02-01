@@ -83,8 +83,9 @@ class DatabaseManager:
         schema_statements = [
             # Transactions table with deduplication hash
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_transactions_id'),
                 hash VARCHAR UNIQUE NOT NULL,
                 transaction_date DATE NOT NULL,
                 description VARCHAR NOT NULL,
@@ -101,8 +102,9 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
             # Category rules for auto-categorization
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
             CREATE TABLE IF NOT EXISTS category_rules (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_category_rules_id'),
                 keyword VARCHAR NOT NULL,
                 category VARCHAR(50) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -110,8 +112,9 @@ class DatabaseManager:
             """,
             # Budget tracking per category
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_budgets_id START 1;
             CREATE TABLE IF NOT EXISTS budgets (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_budgets_id'),
                 category VARCHAR(50) UNIQUE NOT NULL,
                 monthly_limit DECIMAL(10, 2) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
