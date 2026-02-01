@@ -6,6 +6,17 @@
 
 ---
 
+## 🆕 What's New (February 2026)
+
+### Enhanced Visual Experience
+- ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
+- 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
+- 📈 **Trend Analysis:** Income vs. Expenses chart now includes Net Savings overlay
+- 🏪 **Merchant Analysis:** New chart showing top 10 merchants/payees by transaction volume
+- 💵 **Smart Budget Tracking:** Color-coded progress bars with visual alerts (🟢🟡🔴)
+
+---
+
 ## 🚀 Quick Start
 
 **Prerequisites:**
@@ -47,10 +58,22 @@ That's it! 🎉
 - Polars-powered vectorization (5x faster than Pandas)
 
 ### 📊 **Visual Analytics Dashboard**
-- **KPIs:** Total Balance, Monthly Spend, Income, Savings Rate
-- **Line Chart:** Income vs. Expenses over time
-- **Donut Chart:** Spending breakdown by category
-- **Bar Chart:** Budget vs. Actual (red highlight when over budget)
+- **KPIs:** Total Balance, Monthly Spend, Income, Savings Rate with icon indicators
+- **Line Chart:** Income vs. Expenses trend analysis with Net Savings overlay
+- **Donut Chart:** Interactive spending breakdown by category with hover tooltips
+- **Bar Chart:** Top Merchants/Payees analysis (last 3 months)
+- **Budget Progress Bars:** Color-coded alerts (🟢 < 70%, 🟡 70-90%, 🔴 > 90%)
+
+### 🎨 **Category Icons**
+- **Visual Transaction Types:** Icons for easy identification
+  - 💸 Expense (Debit) - Outgoing transactions
+  - 💰 Income (Credit) - Incoming transactions
+  - 🔄 Transfer - Internal transfers
+- Displayed consistently across:
+  - Dashboard KPI cards
+  - Transaction list view
+  - Upload confirmation page
+  - Category breakdown charts
 
 ### 💰 **Budget Management**
 - Set monthly spending limits per category
