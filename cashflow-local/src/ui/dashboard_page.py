@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 from src.database import db_manager
 from src.ui.utils import get_type_icon
-from src.bills import bill_manager
+# from src.bills import bill_manager  # TODO: Implement bills
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,8 @@ def render_kpi_cards(kpis: Dict[str, Any]):
         )
     
     with col5:
-        render_bills_summary_card()
+        # render_bills_summary_card()  # TODO: Implement bills
+        st.info("Bills coming soon")
 
 
 def render_income_expense_chart():

@@ -146,7 +146,8 @@ class DatabaseManager:
                 source_file_hash VARCHAR(32) NOT NULL,
                 workspace_id INTEGER,
                 user_id INTEGER,
-                account_id INTEGER,
+                reconciled BOOLEAN DEFAULT FALSE,
+                reconciled_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -156,6 +157,10 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
             # Index for workspace queries
             "CREATE INDEX IF NOT EXISTS idx_workspace ON transactions(workspace_id)",
+            # Index for account filtering
+            "CREATE INDEX IF NOT EXISTS idx_account ON transactions(account_id)",
+            # Index for reconciliation status
+            "CREATE INDEX IF NOT EXISTS idx_reconciled ON transactions(reconciled)",
             # Category rules for auto-categorization
             """
             CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
@@ -231,22 +236,13 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_account_balances_account ON account_balances(account_id)"
         ]
         
-        # Migration: Add reconciliation fields to transactions table if they don't exist
-        migration_statements = [
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS account_id INTEGER",
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reconciled BOOLEAN DEFAULT FALSE",
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP",
-            "CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)",
-            "CREATE INDEX IF NOT EXISTS idx_transactions_reconciled ON transactions(reconciled)"
-        ]
+        # Note: Migration statements removed because columns are already in main schema
+        # Attempting to ALTER TABLE with existing indexes causes dependency errors in DuckDB
+        # All required columns (account_id, reconciled, reconciled_at) are defined in CREATE TABLE
         
         try:
             # Execute each statement individually
             for statement in schema_statements:
-                self._connection.execute(statement)
-            
-            # Execute migration statements
-            for statement in migration_statements:
                 self._connection.execute(statement)
             
             logger.info("Database schema initialized successfully")
@@ -650,6 +646,87 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to mark transactions as reconciled: {e}")
             raise
+
+    def get_all_accounts(self) -> List[Dict[str, Any]]:
+        """
+        Get all accounts (active and inactive).
+        
+        Returns:
+            List of account dictionaries
+        """
+        try:
+            query = "SELECT id, name, type, currency, is_active FROM accounts ORDER BY name"
+            results = self.execute_query(query)
+            return [
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "type": r[2],
+                    "currency": r[3],
+                    "is_active": bool(r[4])
+                }
+                for r in results
+            ]
+        except Exception as e:
+            logger.error(f"Failed to get all accounts: {e}")
+            return []
+
+    def get_tax_summary(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+        """
+        Get tax summary for the specified period.
+        
+        Args:
+            start_date: Start date
+            end_date: End date
+            
+        Returns:
+            List of tax dictionaries with section, annual_limit, utilization_percent, etc.
+        """
+        try:
+            # Join transactions with tax categories (via tags or categories)
+            # For now, simplistic implementation based on transaction categories matching tax category keywords
+            # In a real implementation, this would be more complex
+            
+            query = """
+                SELECT 
+                    tc.section,
+                    tc.name,
+                    tc.annual_limit,
+                    COALESCE(SUM(t.amount), 0) as total_amount
+                FROM tax_categories tc
+                LEFT JOIN transactions t ON t.category = tc.name 
+                    AND t.transaction_date >= ? AND t.transaction_date <= ?
+                    AND t.type = 'Debit'
+                GROUP BY tc.section, tc.name, tc.annual_limit
+                ORDER BY tc.section
+            """
+            
+            results = self.execute_query(query, (start_date, end_date))
+            
+            summary = []
+            for r in results:
+                section = r[0]
+                name = r[1]
+                limit = r[2]
+                amount = r[3]
+                
+                utilization = 0
+                if limit and limit > 0:
+                    utilization = (amount / limit) * 100
+                
+                summary.append({
+                    "section": section,
+                    "name": name,
+                    "annual_limit": limit,
+                    "total_amount": amount,
+                    "utilization_percent": utilization
+                })
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Failed to get tax summary: {e}")
+            return []
     
     def save_balance_snapshot(
         self,

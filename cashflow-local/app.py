@@ -16,7 +16,8 @@ from src.ui.upload_page import render_upload_page
 from src.ui.dashboard_page import render_dashboard_page
 from src.ui.transactions_page import render_transactions_page
 from src.ui.budgets_page import render_budgets_page
-from src.ui.insights_page import render_insights_page
+from src.ui.accounts_page import render_accounts_page
+# from src.ui.insights_page import render_insights_page  # TODO: Implement
 
 # Configure logging
 logging.basicConfig(
@@ -55,42 +56,17 @@ def render_sidebar():
     with st.sidebar:
         st.title("💰 CashFlow-Local")
         
-        # User and workspace info
-        user = get_current_user()
-        workspace = get_current_workspace()
-        
-        if user and workspace:
-            st.markdown(f"👤 **{user['full_name']}**")
-            
-            # Workspace switcher
-            if len(user['workspaces']) > 1:
-                workspace_options = {
-                    w['workspace_name']: w['workspace_id'] 
-                    for w in user['workspaces']
-                }
-                selected_workspace = st.selectbox(
-                    "Workspace",
-                    options=list(workspace_options.keys()),
-                    index=list(workspace_options.values()).index(workspace['workspace_id'])
-                )
-                
-                if workspace_options[selected_workspace] != workspace['workspace_id']:
-                    set_current_workspace(workspace_options[selected_workspace])
-            else:
-                st.markdown(f"🏠 **{workspace['workspace_name']}**")
-            
-            st.caption(f"Role: {workspace['role']}")
-            
-            # Logout button
-            if st.button("🚪 Logout", use_container_width=True):
-                logout()
+        # TODO: Implement multi-user authentication
+        # user = get_current_user()
+        # workspace = get_current_workspace()
+        # ...
         
         st.markdown("---")
         
         # Navigation
         page = st.radio(
             "Navigation",
-            options=["📊 Dashboard", "🤖 AI Insights", "📤 Upload", "💳 Transactions", "💰 Budgets"],
+            options=["📊 Dashboard", "🏦 Accounts", "📤 Upload", "💳 Transactions", "💰 Budgets", "🤖 AI Insights"],
             label_visibility="collapsed"
         )
         
@@ -124,9 +100,9 @@ def main():
     """Main application entry point."""
     configure_page()
     
-    # Check authentication
-    if not require_auth():
-        return
+    # TODO: Implement authentication
+    # if not require_auth():
+    #     return
     
     # Render sidebar and get selected page
     selected_page = render_sidebar()
@@ -135,19 +111,18 @@ def main():
     if selected_page == "📊 Dashboard":
         render_dashboard_page()
     elif selected_page == "🤖 AI Insights":
-        render_insights_page()
+        st.warning("🚧 AI Insights feature coming soon!")
+        # render_insights_page()  # TODO: Implement
     elif selected_page == "📤 Upload":
         render_upload_page()
     elif selected_page == "💳 Transactions":
         render_transactions_page()
-    elif selected_page == "🏦 Accounts":
-        render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
     elif selected_page == "🏦 Accounts":
         render_accounts_page()
-    elif selected_page == "⚖️ Reconciliation":
-        render_reconciliation_page()
+    # elif selected_page == "⚖️ Reconciliation":  # TODO: Implement reconciliation page
+    #     render_reconciliation_page()
 
 
 if __name__ == "__main__":
