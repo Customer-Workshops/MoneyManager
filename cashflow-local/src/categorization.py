@@ -3,11 +3,11 @@ Intelligent Categorization Engine for CashFlow-Local
 
 Implements rule-based transaction categorization with:
 - Keyword matching against category_rules.json
-- Batch categorization using Polars (5x faster than Pandas)
+- Batch categorization using Pandas vectorized operations
 - Dynamic rule learning (save-as-you-go pattern)
 
 Performance: O(n * r) where n=transactions, r=rules
-Optimization: Polars vectorization for large datasets
+Optimization: Pandas vectorization for large datasets
 """
 
 import json
@@ -16,7 +16,6 @@ from typing import Dict, List, Optional
 from pathlib import Path
 
 import pandas as pd
-import polars as pl
 
 from .database import DatabaseManager
 
@@ -125,9 +124,8 @@ class CategoryEngine:
         """
         Categorize all transactions in a DataFrame.
         
-        Performance: Vectorized using Polars for speed.
-        - Converts Pandas → Polars → Apply rules → Back to Pandas
-        - 5x faster than Pandas iterrows/apply for large datasets
+        Performance: Vectorized using Pandas string operations for better memory efficiency.
+        Avoids Pandas → Polars → Pandas conversion overhead.
         
         Args:
             df: DataFrame with 'description' column
@@ -141,28 +139,27 @@ class CategoryEngine:
         try:
             logger.info(f"Categorizing {len(df)} transactions")
             
-            # Convert to Polars for faster processing
-            pl_df = pl.from_pandas(df)
+            # Initialize category column with 'Uncategorized'
+            df['category'] = 'Uncategorized'
             
-            # Apply categorization rules
-            def apply_rules(description: str) -> str:
-                return self.categorize_transaction(description)
+            # Apply rules in order (first match wins)
+            description_lower = df['description'].str.lower()
             
-            # Polars map_elements (formerly apply)
-            pl_df = pl_df.with_columns(
-                pl.col('description').map_elements(apply_rules, return_dtype=pl.Utf8).alias('category')
-            )
-            
-            # Convert back to Pandas
-            result = pl_df.to_pandas()
+            for rule in self.rules:
+                keyword = rule['keyword'].lower()
+                category = rule['category']
+                
+                # Update only uncategorized rows that match this keyword
+                mask = (df['category'] == 'Uncategorized') & description_lower.str.contains(keyword, na=False, regex=False)
+                df.loc[mask, 'category'] = category
             
             # Log statistics
-            category_counts = result['category'].value_counts()
+            category_counts = df['category'].value_counts()
             uncategorized_count = category_counts.get('Uncategorized', 0)
             logger.info(f"Categorization complete: {uncategorized_count} uncategorized, "
                        f"{len(df) - uncategorized_count} categorized")
             
-            return result
+            return df
         
         except Exception as e:
             logger.error(f"Categorization failed: {e}")

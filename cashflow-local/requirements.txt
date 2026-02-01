@@ -1,7 +1,6 @@
 streamlit==1.31.0
 duckdb==0.9.2
 pandas==2.1.4
-polars==0.20.3
 pdfplumber==0.11.0
 python-dotenv==1.0.0
 plotly==5.18.0
