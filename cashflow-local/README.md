@@ -80,6 +80,18 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🎯 **Financial Goals & Savings Tracker** (NEW!)
+- **Multiple Goal Types:** Emergency Fund, Vacation/Travel, New Car/Bike, Home Down Payment, Education, Retirement, Custom
+- **Smart Progress Tracking:** Real-time progress bars, milestone celebrations (25%, 50%, 75%, 100%)
+- **Intelligent Calculations:** 
+  - Required monthly savings based on target date
+  - Projected completion date based on current savings rate
+  - On-track vs. behind schedule alerts
+- **Contribution Management:** Add savings contributions with notes and track history
+- **Goal Prioritization:** Rank goals by importance (1-10 priority levels)
+- **Dashboard Integration:** View top 3 goals on main dashboard with savings recommendations
+- **Visual Analytics:** Charts for goal distribution, progress comparison, and timeline view
+
 ---
 
 ## 📁 Project Structure
@@ -99,11 +111,13 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── goals.py           # Financial goals management
 │   └── ui/
 │       ├── upload_page.py      # File upload interface
 │       ├── dashboard_page.py   # KPIs and charts
 │       ├── transactions_page.py # Transaction table with editing
-│       └── budgets_page.py     # Budget configuration
+│       ├── budgets_page.py     # Budget configuration
+│       └── goals_page.py       # Financial goals tracking
 └── tests/
     ├── test_deduplication.py
     ├── test_parsers.py
@@ -226,6 +240,13 @@ pytest tests/ -v
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 5. Track Financial Goals
+1. Navigate to **🎯 Goals**
+2. Create new savings goals with target amounts and dates
+3. Add contributions to track progress
+4. Monitor progress with visual indicators
+5. View goal analytics and projections
 
 ---
 
