@@ -14,7 +14,7 @@ import json
 from src.database import db_manager
 from src.categorization import category_engine
 from src.ui.utils import get_type_icon
-from src.search_utils import fuzzy_match, regex_search, filter_by_search
+from src.ui.components.transaction_form import render_transaction_form
 
 logger = logging.getLogger(__name__)
 
@@ -27,31 +27,19 @@ def render_transactions_page():
     Render the transactions management page.
     
     Features:
-    - Advanced searchable transaction table
-    - Multiple filters (date range, category, amount, type, text search)
-    - Date range presets
+    - Manual transaction entry form
+    - Searchable transaction table
+    - Filters (date range, category, amount)
     - Bulk category editing
     - Save-as-rule functionality
     """
     st.header("💳 Transactions")
     
-    # Saved Searches Management
-    saved_searches = db_manager.get_saved_searches()
+    # Manual transaction entry form at top
+    with st.expander("➕ Add New Transaction", expanded=False):
+        render_transaction_form()
     
-    # Top bar with saved searches
-    if saved_searches:
-        st.subheader("⭐ Saved Searches")
-        cols = st.columns(min(len(saved_searches) + 1, 5))
-        
-        for idx, search in enumerate(saved_searches[:4]):
-            with cols[idx]:
-                if st.button(f"🔖 {search['name']}", key=f"load_search_{search['id']}"):
-                    st.session_state.loaded_search = search['filter_config']
-                    st.rerun()
-        
-        with cols[min(len(saved_searches), 4)]:
-            if st.button("➕ Manage Searches"):
-                st.session_state.show_manage_searches = True
+    st.divider()
     
     # Filters
     with st.expander("🔍 Advanced Filters", expanded=True):
