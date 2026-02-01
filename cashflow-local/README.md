@@ -8,6 +8,16 @@
 
 ## 🆕 What's New (February 2026)
 
+### 🤖 AI-Powered Smart Insights (NEW!)
+- **Financial Health Score:** Get a 0-100 score rating your financial health with detailed breakdowns
+- **Spending Anomalies:** Automatically detect unusual spending patterns using Z-score analysis
+- **Trend Analysis:** 3-month trend detection to identify increasing/decreasing spending by category
+- **Predictions:** End-of-month spending forecasts based on current trends
+- **Budget Alerts:** Smart warnings when approaching or exceeding budget limits
+- **Savings Opportunities:** AI identifies recurring subscriptions and high-spending areas
+- **Pattern Detection:** Find recurring transactions, potential duplicates, and seasonal patterns
+- **Top 3 Tips:** Actionable recommendations prioritized by impact
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
@@ -80,6 +90,16 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🤖 **AI-Powered Insights**
+- **Financial Health Score (0-100)** based on savings, budget adherence, and spending stability
+- **Anomaly Detection:** Z-score analysis identifies unusual spending patterns
+- **Trend Analysis:** Track 3-month spending trends by category
+- **Spending Predictions:** Forecast end-of-month spending based on current pace
+- **Budget Alerts:** Critical and warning alerts for budget overruns
+- **Savings Opportunities:** Identify high-cost subscriptions and overspending categories
+- **Pattern Recognition:** Detect recurring transactions and potential duplicates
+- **Smart Recommendations:** Top 3 actionable tips personalized to your spending
+
 ---
 
 ## 📁 Project Structure
@@ -99,11 +119,13 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── insights.py        # AI-powered insights engine
 │   └── ui/
 │       ├── upload_page.py      # File upload interface
 │       ├── dashboard_page.py   # KPIs and charts
 │       ├── transactions_page.py # Transaction table with editing
-│       └── budgets_page.py     # Budget configuration
+│       ├── budgets_page.py     # Budget configuration
+│       └── insights_page.py    # AI insights dashboard
 └── tests/
     ├── test_deduplication.py
     ├── test_parsers.py
@@ -193,6 +215,7 @@ pytest tests/ -v
 - **Frontend:** Streamlit (rapid data visualization)
 - **Database:** DuckDB (local OLAP, columnar storage)
 - **Data Processing:** Pandas + Polars
+- **AI/ML:** NumPy + scikit-learn (insights & anomaly detection)
 - **PDF Parsing:** pdfplumber
 - **Containerization:** Docker (multi-stage build, non-root user)
 
@@ -226,6 +249,15 @@ pytest tests/ -v
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 5. Get AI-Powered Insights 🤖
+1. Navigate to **🤖 AI Insights**
+2. View your Financial Health Score (0-100)
+3. Review Top 3 actionable tips
+4. Explore spending anomalies and trends
+5. Check spending predictions
+6. Discover savings opportunities
+7. Analyze recurring patterns
 
 ---
 
