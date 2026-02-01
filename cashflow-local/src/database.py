@@ -71,9 +71,16 @@ class DatabaseManager:
         Create database schema if it doesn't exist.
         
         Schema Design:
-        1. transactions: Core fact table with hash-based deduplication
-        2. category_rules: Keyword-to-category mappings
-        3. budgets: Monthly spending limits per category
+        1. users: User accounts with authentication
+        2. workspaces: Family/group workspaces
+        3. user_workspace_roles: Role-based access control
+        4. transactions: Core fact table with hash-based deduplication
+        5. category_rules: Keyword-to-category mappings
+        6. budgets: Monthly spending limits per category
+        7. accounts: Bank accounts (shared or personal)
+        8. goals: Shared savings goals
+        9. transaction_comments: Comments on transactions
+        10. activity_log: Audit trail
         
         Indexes:
         - idx_hash: O(1) duplicate detection
@@ -81,7 +88,54 @@ class DatabaseManager:
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
-            # Transactions table with deduplication hash
+            # Users table
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_users_id START 1;
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_users_id'),
+                email VARCHAR UNIQUE NOT NULL,
+                password_hash VARCHAR NOT NULL,
+                full_name VARCHAR NOT NULL,
+                avatar_url VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Workspaces (families/groups)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_workspaces_id START 1;
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_workspaces_id'),
+                name VARCHAR NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # User-Workspace roles (role-based access)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_user_workspace_roles_id START 1;
+            CREATE TABLE IF NOT EXISTS user_workspace_roles (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_user_workspace_roles_id'),
+                user_id INTEGER NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, workspace_id)
+            )
+            """,
+            # Accounts table (shared or personal)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
+                workspace_id INTEGER NOT NULL,
+                name VARCHAR NOT NULL,
+                account_type VARCHAR(50) NOT NULL,
+                is_shared BOOLEAN DEFAULT TRUE,
+                owner_user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Transactions table with deduplication hash (updated with user and workspace)
             """
             CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
@@ -93,6 +147,9 @@ class DatabaseManager:
                 type VARCHAR(10) NOT NULL,
                 category VARCHAR(50) DEFAULT 'Uncategorized',
                 source_file_hash VARCHAR(32) NOT NULL,
+                workspace_id INTEGER,
+                user_id INTEGER,
+                account_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -100,6 +157,8 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_hash ON transactions(hash)",
             # Index for temporal queries (monthly aggregations)
             "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
+            # Index for workspace queries
+            "CREATE INDEX IF NOT EXISTS idx_workspace ON transactions(workspace_id)",
             # Category rules for auto-categorization
             """
             CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
@@ -110,16 +169,62 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
-            # Budget tracking per category
+            # Budget tracking per category (updated with workspace and sharing)
             """
             CREATE SEQUENCE IF NOT EXISTS seq_budgets_id START 1;
             CREATE TABLE IF NOT EXISTS budgets (
                 id INTEGER PRIMARY KEY DEFAULT nextval('seq_budgets_id'),
-                category VARCHAR(50) UNIQUE NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                category VARCHAR(50) NOT NULL,
                 monthly_limit DECIMAL(10, 2) NOT NULL,
+                is_shared BOOLEAN DEFAULT TRUE,
+                owner_user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(workspace_id, category, owner_user_id)
+            )
+            """,
+            # Goals table (shared savings goals)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_goals_id START 1;
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goals_id'),
+                workspace_id INTEGER NOT NULL,
+                name VARCHAR NOT NULL,
+                target_amount DECIMAL(12, 2) NOT NULL,
+                current_amount DECIMAL(12, 2) DEFAULT 0,
+                target_date DATE,
+                is_shared BOOLEAN DEFAULT TRUE,
+                created_by INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+            """,
+            # Transaction comments
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_transaction_comments_id START 1;
+            CREATE TABLE IF NOT EXISTS transaction_comments (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_transaction_comments_id'),
+                transaction_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                comment TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Activity log (audit trail)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_activity_log_id START 1;
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_activity_log_id'),
+                workspace_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id INTEGER,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Index for activity log queries
+            "CREATE INDEX IF NOT EXISTS idx_activity_workspace ON activity_log(workspace_id)"
         ]
         
         try:
