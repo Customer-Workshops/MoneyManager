@@ -112,33 +112,17 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
-### 📋 **Tax Category Tagging & ITR Filing Support (NEW)**
-- **Indian Tax Categories:** 80C, 80D, 80E, 80G, 80TTA, HRA, Section 24, Business Expenses
-- **Multi-tag Support:** Tag transactions with multiple tax categories
-- **Tax Limits & Tracking:** Track utilization against annual limits (e.g., 80C: ₹1.5L)
-- **Tax Summary Dashboard:** View YTD deductions and estimated tax savings
-- **Category-wise Reports:** Detailed transaction lists by tax category
-- **Excel Export:** Generate ITR-ready reports for CA/tax filing
-- **Financial Year Support:** Automatic FY detection (April-March)
-- **Utilization Alerts:** Color-coded progress bars (🟢🟡🔴) for limit tracking
-### 🏦 **Multi-Account Support** ⭐ NEW
-- **Track Multiple Accounts:** Manage unlimited bank accounts, credit cards, and wallets
-- **Account Types Supported:**
-  - 💳 Savings Account
-  - 💳 Checking/Current Account
-  - 💳 Credit Card
-  - 📱 Digital Wallet (PayTM, PhonePe, GPay)
-  - 💵 Cash
-- **Features:**
-  - Add/Edit/Delete accounts with custom names and types
-  - Set initial account balances
-  - Assign transactions to specific accounts during upload
-  - Account-specific filtering in dashboard and transactions page
-  - Consolidated "All Accounts" view for complete financial picture
-  - **Net Worth Calculation:** Automatic sum across all accounts
-  - **Account Balance Tracking:** Real-time balance calculation from transactions
-  - Account badges and color coding in transaction lists
-- **Account Management Page:** Dedicated interface for managing all your financial accounts
+### 🏦 **Account Management & Reconciliation**
+- Create multiple bank accounts (Checking, Savings, Credit Card, etc.)
+- Set opening balances and track current balance
+- Multi-currency support (INR, USD, EUR, GBP, JPY)
+- Monthly balance reconciliation against bank statements
+- Variance detection and analysis
+- Duplicate transaction detection
+- Balance history timeline visualization
+- Comprehensive reconciliation reports
+
+📘 **[Full Reconciliation Guide](docs/RECONCILIATION.md)**
 
 ---
 
@@ -161,18 +145,20 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
-│   ├── goals.py           # Financial goals management
+│   ├── reconciliation.py  # Balance reconciliation & variance detection
 │   └── ui/
-│       ├── upload_page.py       # File upload interface
-│       ├── dashboard_page.py    # KPIs and charts
-│       ├── transactions_page.py # Transaction table with editing
-│       ├── budgets_page.py      # Budget configuration
-│       └── tax_reports_page.py  # Tax category tagging & reports (NEW)
+│       ├── upload_page.py         # File upload interface
+│       ├── dashboard_page.py      # KPIs and charts
+│       ├── transactions_page.py   # Transaction table with editing
+│       ├── budgets_page.py        # Budget configuration
+│       ├── accounts_page.py       # Account management
+│       └── reconciliation_page.py # Reconciliation workflow
 └── tests/
     ├── test_auth.py            # Authentication tests
     ├── test_workspace.py       # Workspace management tests
     ├── test_deduplication.py
     ├── test_parsers.py
+    ├── test_reconciliation.py
     └── fixtures/
         └── sample_statement.csv
 ```
@@ -314,30 +300,15 @@ pytest tests/ -v
 2. Add category budget limits
 3. View budget compliance on dashboard
 
-### 5. Tax Management & ITR Filing (NEW)
-1. Navigate to **📋 Tax Reports**
-2. Use the **🏷️ Tag Transactions** tab to tag expenses with tax categories:
-   - Select date range to view transactions
-   - Choose relevant tax categories (80C, 80D, etc.) for each transaction
-   - One transaction can have multiple tags
-   - Save tags to track tax deductions
-3. View **📊 Tax Summary** tab for:
-   - Year-to-date deductions by category
-   - Utilization percentages vs. annual limits
-   - Estimated tax savings calculation
-4. Check **📈 Category Details** for transaction-level analysis
-5. Use **📥 Export Reports** to generate Excel files for your CA or ITR filing
-6. Monitor tax savings on the Dashboard's **Tax Savings Widget**
+### 5. Manage Accounts & Reconcile
+1. Navigate to **🏦 Accounts**
+2. Add your bank accounts with opening balances
+3. Go to **⚖️ Reconciliation**
+4. Compare app balance with bank statements
+5. Detect duplicates and resolve variances
+6. Mark transactions as reconciled
 
-**Supported Tax Categories (India):**
-- **80C:** ELSS, EPF, PPF, Life Insurance (Limit: ₹1.5L)
-- **80D:** Health Insurance (Limit: ₹25K, ₹50K for senior citizens)
-- **80E:** Education Loan Interest (No limit)
-- **80G:** Donations to Charity
-- **80TTA:** Savings Account Interest (Limit: ₹10K)
-- **HRA:** House Rent Allowance
-- **Section 24:** Home Loan Interest (Limit: ₹2L)
-- **Business Expenses:** For freelancers/self-employed
+For detailed reconciliation instructions, see [Reconciliation Guide](docs/RECONCILIATION.md)
 
 ---
 
