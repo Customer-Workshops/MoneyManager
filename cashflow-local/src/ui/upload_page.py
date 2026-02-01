@@ -18,6 +18,24 @@ from src.database import db_manager
 logger = logging.getLogger(__name__)
 
 
+def get_type_icon(transaction_type: str) -> str:
+    """
+    Get emoji icon for transaction type.
+    
+    Args:
+        transaction_type: 'Debit', 'Credit', or 'Transfer'
+    
+    Returns:
+        Emoji icon string
+    """
+    icons = {
+        'Debit': '💸',     # Expense - outgoing transactions
+        'Credit': '💰',    # Income - incoming transactions
+        'Transfer': '🔄'   # Transfer - internal transfers
+    }
+    return icons.get(transaction_type, '💳')
+
+
 def render_upload_page():
     """
     Render the file upload page.
@@ -89,9 +107,19 @@ def render_upload_page():
                 
                 # Debug: Show what was parsed
                 st.info(f"📋 Parsed {len(df)} transactions from file")
-                if len(df) > 0 and len(df) < 10:
-                    with st.expander("🔍 View Parsed Data"):
-                        st.dataframe(df)
+                if len(df) > 0:
+                    # Show breakdown by type with icons
+                    if 'type' in df.columns:
+                        type_counts = df['type'].value_counts()
+                        type_breakdown = " | ".join([
+                            f"{get_type_icon(t)} {t}: {count}" 
+                            for t, count in type_counts.items()
+                        ])
+                        st.caption(f"Breakdown: {type_breakdown}")
+                    
+                    if len(df) < 10:
+                        with st.expander("🔍 View Parsed Data"):
+                            st.dataframe(df)
                 
                 # Step 4: Categorize
                 progress_bar.progress(60, text="Categorizing transactions...")

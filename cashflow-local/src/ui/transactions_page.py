@@ -15,6 +15,24 @@ from src.categorization import category_engine
 logger = logging.getLogger(__name__)
 
 
+def get_type_icon(transaction_type: str) -> str:
+    """
+    Get emoji icon for transaction type.
+    
+    Args:
+        transaction_type: 'Debit', 'Credit', or 'Transfer'
+    
+    Returns:
+        Emoji icon string
+    """
+    icons = {
+        'Debit': '💸',     # Expense - outgoing transactions
+        'Credit': '💰',    # Income - incoming transactions
+        'Transfer': '🔄'   # Transfer - internal transfers
+    }
+    return icons.get(transaction_type, '💳')
+
+
 def render_transactions_page():
     """
     Render the transactions management page.
@@ -96,6 +114,9 @@ def render_transactions_page():
         # Format for display
         df['transaction_date'] = pd.to_datetime(df['transaction_date']).dt.strftime('%Y-%m-%d')
         df['amount'] = df['amount'].apply(lambda x: f"${x:,.2f}")
+        
+        # Add icon to type column
+        df['type'] = df['type'].apply(lambda x: f"{get_type_icon(x)} {x}")
         
         st.success(f"Found {len(df)} transactions")
         
