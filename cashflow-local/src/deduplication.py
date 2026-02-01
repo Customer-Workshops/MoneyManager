@@ -180,15 +180,37 @@ def insert_transactions(
             if account_id is not None:
                 new_df['account_id'] = account_id
             
+            # Rename hash column to hash_id to match DB schema
+            new_df = new_df.rename(columns={'hash': 'hash_id'})
+            
             # Convert DataFrame to list of dicts for batch insert
             records = new_df.to_dict('records')
             
-            # Remove the id column if it exists (auto-generated)
+            # Post-processing records
+            processed_records = []
             for record in records:
+                # Remove the id column if it exists (auto-generated)
                 record.pop('id', None)
+                
+                # Resolve Category ID
+                cat_name = record.get('category', 'Uncategorized')
+                cat_type = record.get('type', 'Expense')
+                # Handle potential 'Credit'/'Debit' types if parser still uses them
+                if cat_type == 'Credit': cat_type = 'Income'
+                if cat_type == 'Debit': cat_type = 'Expense'
+                
+                record['category_id'] = db_manager.get_category_id(cat_name, cat_type)
+                
+                # Remove the string category field as it's not in the DB table anymore
+                record.pop('category', None)
+                
+                # Ensure type matches DB constraints (Income/Expense/Transfer)
+                record['type'] = cat_type
+                
+                processed_records.append(record)
             
             # Batch insert
-            inserted_count = db_manager.execute_insert('transactions', records)
+            inserted_count = db_manager.execute_insert('transactions', processed_records)
             stats['inserted'] = inserted_count
             logger.info(f"Successfully inserted {inserted_count} transactions")
         else:

@@ -54,46 +54,32 @@ def configure_page():
 def render_sidebar():
     """Render sidebar navigation."""
     with st.sidebar:
-        st.title("💰 CashFlow-Local")
+        st.title("💸 CashFlow")
         
         # TODO: Implement multi-user authentication
         # user = get_current_user()
         # workspace = get_current_workspace()
         # ...
-        
-        st.markdown("---")
-        
+       
         # Navigation
-        page = st.radio(
-            "Navigation",
-            options=["📊 Dashboard", "🏦 Accounts", "📤 Upload", "💳 Transactions", "💰 Budgets", "🤖 AI Insights"],
-            label_visibility="collapsed"
+        selected_page = st.radio(
+            "Navigate",
+            options=["Calendar", "Dashboard", "Upload", "Accounts", "Bill Manager", "Settings"],
+            index=0,  # Default to Calendar
+            format_func=lambda x: {
+                "Calendar": "📅 Calendar",
+                "Dashboard": "📊 Stats",
+                "Upload": "📤 Import",
+                "Accounts": "🏦 Assets",
+                "Bill Manager": "📅 Bills",
+                "Settings": "⚙️ Settings"
+            }.get(x, x)
         )
         
-        st.markdown("---")
-        
-        # Info section
-        st.markdown("### ℹ️ About")
-        st.markdown("""
-        **CashFlow-Local** is a privacy-first financial manager.
-        
-        All your data stays local on your machine.
-        
-        **Features:**
-        - 👥 Multi-user & family support
-        - 📤 Upload CSV/PDF statements
-        - 🔄 Automatic deduplication
-        - 🤖 Smart categorization
-        - 📊 Visual analytics
-        - 💰 Budget tracking
-        - 🤖 AI-powered insights
-        """)
-        
-        st.markdown("---")
-        st.caption("Built with Streamlit & DuckDB")
-        st.caption("© 2026 CashFlow-Local")
-    
-    return page
+        st.divider()
+        st.caption(f"v1.0.0 (Realbyte Style)")
+
+    return selected_page
 
 
 def main():
@@ -104,25 +90,42 @@ def main():
     # if not require_auth():
     #     return
     
+    # Inject Material Icons for Calendar View
+    st.markdown('<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">', unsafe_allow_html=True)
+    
     # Render sidebar and get selected page
     selected_page = render_sidebar()
     
     # Render selected page
-    if selected_page == "📊 Dashboard":
-        render_dashboard_page()
-    elif selected_page == "🤖 AI Insights":
-        st.warning("🚧 AI Insights feature coming soon!")
-        # render_insights_page()  # TODO: Implement
-    elif selected_page == "📤 Upload":
+    if selected_page == "Calendar":
+        from src.ui.calendar_view import render_calendar_view
+        render_calendar_view()
+        
+    elif selected_page == "Dashboard":
+        from src.ui.stats_view import render_stats_view
+        render_stats_view()
+        
+    elif selected_page == "Upload":
         render_upload_page()
-    elif selected_page == "💳 Transactions":
-        render_transactions_page()
-    elif selected_page == "💰 Budgets":
-        render_budgets_page()
-    elif selected_page == "🏦 Accounts":
+        
+    elif selected_page == "Accounts":
         render_accounts_page()
-    # elif selected_page == "⚖️ Reconciliation":  # TODO: Implement reconciliation page
-    #     render_reconciliation_page()
+        
+    elif selected_page == "Bill Manager":
+        st.info("🚧 Bill Manager coming soon")
+        
+    elif selected_page == "Settings":
+        st.title("⚙️ Settings")
+        if st.button("RESET DATABASE (Dev)"):
+            try:
+                # Simple nuking for dev
+                db_manager.execute_query("DROP TABLE IF EXISTS transactions")
+                db_manager.execute_query("DROP TABLE IF EXISTS categories")
+                db_manager.execute_query("DROP TABLE IF EXISTS accounts") # Re-create accounts logic
+                db_manager._initialize_schema()
+                st.success("Database Reset! Please refresh.")
+            except Exception as e:
+                st.error(f"Reset failed: {e}")
 
 
 if __name__ == "__main__":

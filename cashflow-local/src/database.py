@@ -71,54 +71,28 @@ class DatabaseManager:
         Create database schema if it doesn't exist.
         
         Schema Design:
-        1. transactions: Core fact table with hash-based deduplication
-        2. category_rules: Keyword-to-category mappings
-        3. budgets: Monthly spending limits per category
-        4. accounts: Bank account information with opening balances
-        5. account_balances: Historical balance tracking per account
-        
-        Indexes:
-        - idx_hash: O(1) duplicate detection
-        - idx_date: Temporal queries (monthly aggregations)
-        - idx_account: Account-based filtering
+        1. categories: Normalized category management (Type, Icon, Color)
+        2. transactions: Core fact table with category_id FK
+        3. accounts: Bank/Asset accounts
+        4. transfers: (Managed via transaction type 'Transfer')
         """
-        # DuckDB doesn't support executescript, need to execute each statement separately
+        # Define Tables
         schema_statements = [
-            # Users table
+            # Categories Table (New)
             """
-            CREATE SEQUENCE IF NOT EXISTS seq_users_id START 1;
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_users_id'),
-                email VARCHAR UNIQUE NOT NULL,
-                password_hash VARCHAR NOT NULL,
-                full_name VARCHAR NOT NULL,
-                avatar_url VARCHAR,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Workspaces (families/groups)
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_workspaces_id START 1;
-            CREATE TABLE IF NOT EXISTS workspaces (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_workspaces_id'),
+            CREATE SEQUENCE IF NOT EXISTS seq_categories_id START 1;
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_categories_id'),
                 name VARCHAR NOT NULL,
-                created_by INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # User-Workspace roles (role-based access)
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_user_workspace_roles_id START 1;
-            CREATE TABLE IF NOT EXISTS user_workspace_roles (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_user_workspace_roles_id'),
-                user_id INTEGER NOT NULL,
-                workspace_id INTEGER NOT NULL,
-                role VARCHAR(20) NOT NULL,
+                type VARCHAR(10) NOT NULL, -- 'Income', 'Expense'
+                icon_name VARCHAR,         -- Material Icon name
+                color VARCHAR,             -- Hex color
+                is_default BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, workspace_id)
+                UNIQUE(name, type)
             )
             """,
-            # Accounts table (shared or personal)
+            # Accounts Table
             """
             CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
             CREATE TABLE IF NOT EXISTS accounts (
@@ -127,226 +101,126 @@ class DatabaseManager:
                 type VARCHAR(50) NOT NULL,
                 currency VARCHAR(3) DEFAULT 'USD',
                 is_active BOOLEAN DEFAULT TRUE,
-                workspace_id INTEGER,
-                is_shared BOOLEAN DEFAULT TRUE,
-                owner_user_id INTEGER,
                 opening_balance DECIMAL(12, 2) DEFAULT 0,
                 opening_balance_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
-            # Transactions table with deduplication hash (updated with user and workspace)
+            # Transactions Table (Updated)
             """
             CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY DEFAULT nextval('seq_transactions_id'),
-                hash VARCHAR UNIQUE NOT NULL,
+                hash_id VARCHAR UNIQUE,    -- Copied from 'hash' logic
                 transaction_date DATE NOT NULL,
-                description VARCHAR NOT NULL,
                 amount DECIMAL(12, 2) NOT NULL,
-                type VARCHAR(10) NOT NULL,
-                category VARCHAR(50) DEFAULT 'Uncategorized',
-                account_id INTEGER,
-                source_file_hash VARCHAR(32) NOT NULL,
-                workspace_id INTEGER,
-                user_id INTEGER,
+                type VARCHAR(10) NOT NULL, -- 'Income', 'Expense', 'Transfer'
+                category_id INTEGER,       -- FK to categories
+                account_id INTEGER,        -- FK to accounts
+                description VARCHAR,       -- Original description/payee
+                note VARCHAR,              -- User notes
+                source_file_hash VARCHAR(32),
                 reconciled BOOLEAN DEFAULT FALSE,
-                reconciled_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Index for O(1) duplicate lookups
-            "CREATE INDEX IF NOT EXISTS idx_hash ON transactions(hash)",
-            # Index for temporal queries (monthly aggregations)
-            "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
-            # Index for workspace queries
-            "CREATE INDEX IF NOT EXISTS idx_workspace ON transactions(workspace_id)",
-            # Index for account filtering
-            "CREATE INDEX IF NOT EXISTS idx_account ON transactions(account_id)",
-            # Index for reconciliation status
-            "CREATE INDEX IF NOT EXISTS idx_reconciled ON transactions(reconciled)",
-            # Category rules for auto-categorization
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
-            CREATE TABLE IF NOT EXISTS category_rules (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_category_rules_id'),
-                keyword VARCHAR NOT NULL,
-                category VARCHAR(50) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Budget tracking per category (updated with workspace and sharing)
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_budgets_id START 1;
-            CREATE TABLE IF NOT EXISTS budgets (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_budgets_id'),
-                workspace_id INTEGER NOT NULL,
-                category VARCHAR(50) NOT NULL,
-                monthly_limit DECIMAL(10, 2) NOT NULL,
-                is_shared BOOLEAN DEFAULT TRUE,
-                owner_user_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(workspace_id, category, owner_user_id)
+                FOREIGN KEY (category_id) REFERENCES categories(id),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
             """,
-            # Goals table (shared savings goals)
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_goals_id START 1;
-            CREATE TABLE IF NOT EXISTS goals (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goals_id'),
-                workspace_id INTEGER NOT NULL,
-                name VARCHAR NOT NULL,
-                target_amount DECIMAL(12, 2) NOT NULL,
-                current_amount DECIMAL(12, 2) DEFAULT 0,
-                target_date DATE,
-                is_shared BOOLEAN DEFAULT TRUE,
-                created_by INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Accounts table for tracking bank accounts
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
-            CREATE TABLE IF NOT EXISTS accounts (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
-                name VARCHAR(100) UNIQUE NOT NULL,
-                account_number VARCHAR(50),
-                account_type VARCHAR(20) DEFAULT 'Checking',
-                opening_balance DECIMAL(12, 2) DEFAULT 0.00,
-                opening_balance_date DATE,
-                currency VARCHAR(3) DEFAULT 'INR',
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            # Account balances history table
-            """
-            CREATE SEQUENCE IF NOT EXISTS seq_account_balances_id START 1;
-            CREATE TABLE IF NOT EXISTS account_balances (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_account_balances_id'),
-                account_id INTEGER NOT NULL,
-                balance_date DATE NOT NULL,
-                calculated_balance DECIMAL(12, 2) NOT NULL,
-                actual_balance DECIMAL(12, 2),
-                variance DECIMAL(12, 2),
-                is_reconciled BOOLEAN DEFAULT FALSE,
-                reconciled_at TIMESTAMP,
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(account_id, balance_date)
-            )
-            """,
-            "CREATE INDEX IF NOT EXISTS idx_account_balances_date ON account_balances(balance_date)",
-            "CREATE INDEX IF NOT EXISTS idx_account_balances_account ON account_balances(account_id)"
+            # Indexes
+            "CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(transaction_date)",
+            "CREATE INDEX IF NOT EXISTS idx_trans_cat ON transactions(category_id)",
+            "CREATE INDEX IF NOT EXISTS idx_trans_acc ON transactions(account_id)"
         ]
         
-        # Note: Migration statements removed because columns are already in main schema
-        # Attempting to ALTER TABLE with existing indexes causes dependency errors in DuckDB
-        # All required columns (account_id, reconciled, reconciled_at) are defined in CREATE TABLE
-        
         try:
-            # Execute each statement individually
             for statement in schema_statements:
                 self._connection.execute(statement)
             
-            logger.info("Database schema initialized successfully")
+            # Seed Default Categories if empty
+            self._seed_default_categories()
             
-            # Initialize predefined tax categories
-            self._initialize_tax_categories()
+            logger.info("Database schema initialized successfully (Realbyte V1)")
         except Exception as e:
             logger.error(f"Schema initialization failed: {e}")
             raise
-    
-    def _initialize_tax_categories(self) -> None:
-        """
-        Initialize predefined Indian tax categories if not already present.
-        
-        Tax Categories (India):
-        - 80C: Investments (ELSS, EPF, PPF, Life Insurance) - Max: ₹1.5L
-        - 80D: Health Insurance premiums - Max: ₹25K (₹50K for senior citizens)
-        - 80E: Education Loan interest - No limit
-        - 80G: Donations to charity - 50% or 100% of donation
-        - 80TTA: Savings account interest - Max: ₹10K
-        - HRA: House Rent Allowance - Based on salary
-        - Home Loan Interest: Section 24 - Max: ₹2L
-        - Business Expenses: For freelancers - As per actual
-        """
-        predefined_categories = [
-            {
-                'name': '80C - Investments',
-                'section': '80C',
-                'description': 'ELSS, EPF, PPF, Life Insurance, Tax-saving FD',
-                'annual_limit': 150000.00
-            },
-            {
-                'name': '80D - Health Insurance',
-                'section': '80D',
-                'description': 'Health Insurance premiums for self and family',
-                'annual_limit': 25000.00
-            },
-            {
-                'name': '80D - Senior Citizen Health Insurance',
-                'section': '80D',
-                'description': 'Health Insurance premiums for senior citizens',
-                'annual_limit': 50000.00
-            },
-            {
-                'name': '80E - Education Loan',
-                'section': '80E',
-                'description': 'Interest on Education Loan',
-                'annual_limit': None  # No limit
-            },
-            {
-                'name': '80G - Donations',
-                'section': '80G',
-                'description': 'Donations to charitable institutions',
-                'annual_limit': None  # Depends on donation type
-            },
-            {
-                'name': '80TTA - Savings Interest',
-                'section': '80TTA',
-                'description': 'Interest from Savings Account',
-                'annual_limit': 10000.00
-            },
-            {
-                'name': 'HRA - House Rent',
-                'section': 'HRA',
-                'description': 'House Rent Allowance',
-                'annual_limit': None  # Based on salary and rent
-            },
-            {
-                'name': 'Section 24 - Home Loan Interest',
-                'section': '24',
-                'description': 'Interest on Home Loan',
-                'annual_limit': 200000.00
-            },
-            {
-                'name': 'Business Expenses',
-                'section': 'Business',
-                'description': 'Business-related expenses for freelancers',
-                'annual_limit': None  # As per actual
-            }
+
+    def _seed_default_categories(self):
+        """Seed the database with default Realbyte-style categories."""
+        defaults = [
+            # Expenses
+            ("Food", "Expense", "fastfood", "#FF5252"),
+            ("Transport", "Expense", "directions_car", "#448AFF"),
+            ("Shopping", "Expense", "shopping_cart", "#FF4081"),
+            ("Entertainment", "Expense", "movie", "#7C4DFF"),
+            ("Housing", "Expense", "home", "#FFC107"),
+            ("Utilities", "Expense", "bolt", "#FFC107"),
+            ("Health", "Expense", "medical_services", "#00C853"),
+            ("Other", "Expense", "more_horiz", "#9E9E9E"),
+            # Income
+            ("Salary", "Income", "payments", "#4CAF50"),
+            ("Part-time", "Income", "watch_later", "#CDDC39"),
+            ("Gift", "Income", "card_giftcard", "#E040FB"),
+            ("Other", "Income", "attach_money", "#9E9E9E"),
         ]
         
         try:
-            # Check if tax categories already exist
             with self.get_connection() as conn:
-                count = conn.execute("SELECT COUNT(*) FROM tax_categories").fetchone()[0]
-                
-                # Only insert if table is empty
+                count = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
                 if count == 0:
-                    for category in predefined_categories:
-                        conn.execute(
-                            """
-                            INSERT INTO tax_categories (name, section, description, annual_limit)
-                            VALUES (?, ?, ?, ?)
-                            """,
-                            (category['name'], category['section'], category['description'], category['annual_limit'])
-                        )
-                    logger.info(f"Initialized {len(predefined_categories)} predefined tax categories")
+                    # Correct logic
+                    data = [(d[0], d[1], d[2], d[3]) for d in defaults]
+                    conn.executemany(
+                        "INSERT INTO categories (name, type, icon_name, color, is_default) VALUES (?, ?, ?, ?, TRUE)",
+                        data
+                    )
+                    logger.info(f"Seeded {len(defaults)} default categories")
         except Exception as e:
-            logger.error(f"Failed to initialize tax categories: {e}")
-            # Don't raise - this is not critical for app functionality
+            logger.error(f"Failed to seed categories: {e}")
+    
+    def get_category_id(self, name: str, type: str = 'Expense') -> int:
+        """
+        Get category ID by name, creating it if it doesn't exist.
+        
+        Args:
+            name: Category name
+            type: Category type (Income/Expense)
+            
+        Returns:
+            Category ID
+        """
+        try:
+            with self.get_connection() as conn:
+                # Try to find existing
+                result = conn.execute(
+                    "SELECT id FROM categories WHERE name = ? AND type = ?", 
+                    [name, type]
+                ).fetchone()
+                
+                if result:
+                    return result[0]
+                
+                # Create new if not found
+                # Default icon/color based on type
+                icon = "attach_money" if type == 'Income' else "payments"
+                color = "#4CAF50" if type == 'Income' else "#F44336"
+                
+                result = conn.execute(
+                    """
+                    INSERT INTO categories (name, type, icon_name, color)
+                    VALUES (?, ?, ?, ?)
+                    RETURNING id
+                    """,
+                    [name, type, icon, color]
+                ).fetchone()
+                
+                logger.info(f"Created new category: {name} ({type})")
+                return result[0]
+                
+        except Exception as e:
+            logger.error(f"Failed to get/create category {name}: {e}")
+            # Fallback to a default/uncategorized ID if possible, or re-raise
+            # For now, let's try to get ID 1 (assuming it exists from seeding)
+            return 1
     
     
     @contextmanager
@@ -436,10 +310,6 @@ class DatabaseManager:
         """
         Check which transaction hashes already exist in the database.
         
-        Performance:
-        - Uses indexed query on hash column: O(1) per hash lookup
-        - Batch query avoids N individual lookups
-        
         Args:
             hashes: List of transaction hashes to check
         
@@ -451,7 +321,7 @@ class DatabaseManager:
         
         try:
             placeholders = ", ".join(["?" for _ in hashes])
-            query = f"SELECT hash FROM transactions WHERE hash IN ({placeholders})"
+            query = f"SELECT hash_id FROM transactions WHERE hash_id IN ({placeholders})"
             
             with self.get_connection() as conn:
                 results = conn.execute(query, hashes).fetchall()
@@ -473,48 +343,50 @@ class DatabaseManager:
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve transactions with optional filtering.
-        
-        Args:
-            start_date: Filter transactions after this date
-            end_date: Filter transactions before this date
-            category: Filter by category
-            account_id: Filter by account
-            reconciled: Filter by reconciliation status
-            limit: Maximum number of records to return
-        
-        Returns:
-            List of transaction dictionaries
+        Retrieve transactions with joined category info.
         """
-        query = "SELECT * FROM transactions WHERE 1=1"
+        # Join with categories to get name, icon, color
+        query = """
+            SELECT 
+                t.*,
+                c.name as category_name,
+                c.icon_name as category_icon,
+                c.color as category_color
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE 1=1
+        """
         params = []
         
         if start_date:
-            query += " AND transaction_date >= ?"
+            query += " AND t.transaction_date >= ?"
             params.append(start_date)
         
         if end_date:
-            query += " AND transaction_date <= ?"
+            query += " AND t.transaction_date <= ?"
             params.append(end_date)
         
         if category:
-            query += " AND category = ?"
+            query += " AND c.name = ?"
             params.append(category)
         
         if account_id is not None:
-            query += " AND account_id = ?"
+            query += " AND t.account_id = ?"
             params.append(account_id)
         
         if reconciled is not None:
-            query += " AND reconciled = ?"
+            query += " AND t.reconciled = ?"
             params.append(reconciled)
         
-        query += f" ORDER BY transaction_date DESC LIMIT {limit}"
+        query += f" ORDER BY t.transaction_date DESC LIMIT {limit}"
         
         try:
             with self.get_connection() as conn:
-                results = conn.execute(query, params).fetchdf()  # Return as pandas DataFrame
-                return results.to_dict('records')
+                results = conn.execute(query, params).fetchdf()
+                # Rename category_name back to category for compatibility if needed, 
+                # or just use new fields. Let's keep 'category' as the name for UI compat.
+                df = results.rename(columns={'category_name': 'category'})
+                return df.to_dict('records')
         except Exception as e:
             logger.error(f"Failed to retrieve transactions: {e}")
             raise
@@ -711,21 +583,64 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to calculate net worth: {e}")
             return 0.0
+
+    def calculate_account_balance(self, account_id: int, as_of_date: Optional[date] = None) -> float:
+        """
+        Calculate current balance for an account.
         
-        if opening_date:
-            query += " AND transaction_date >= ?"
-            params.append(opening_date)
+        Formula: Opening Balance + Sum(Income) - Sum(Expense) - Sum(Transfers Out)
         
-        if as_of_date:
-            query += " AND transaction_date <= ?"
-            params.append(as_of_date)
+        Args:
+            account_id: ID of the account
+            as_of_date: Optional date to calculate balance as of (inclusive)
         
+        Returns:
+            Current balance
+        """
         try:
             with self.get_connection() as conn:
+                # Get opening balance and date
+                account = conn.execute(
+                    "SELECT opening_balance, opening_balance_date FROM accounts WHERE id = ?", 
+                    [account_id]
+                ).fetchone()
+                
+                if not account:
+                    return 0.0
+                
+                opening_balance = account[0] if account[0] is not None else 0.0
+                opening_date = account[1]
+                
+                # Calculate net movement from transactions
+                query = """
+                    SELECT 
+                        SUM(CASE 
+                            WHEN type = 'Income' THEN amount 
+                            WHEN type = 'Expense' THEN -amount 
+                            WHEN type = 'Transfer' THEN -amount -- Assuming Transfer Out for single-entry
+                            ELSE 0 
+                        END)
+                    FROM transactions 
+                    WHERE account_id = ?
+                """
+                params = [account_id]
+                
+                if opening_date:
+                    query += " AND transaction_date >= ?"
+                    params.append(opening_date)
+                
+                if as_of_date:
+                    query += " AND transaction_date <= ?"
+                    params.append(as_of_date)
+                
                 result = conn.execute(query, params).fetchone()
-                net_change = result[0] if result[0] is not None else 0
+                net_change = result[0] if result[0] is not None else 0.0
+                
                 return float(opening_balance) + float(net_change)
+                
         except Exception as e:
+            logger.error(f"Failed to calculate account balance: {e}")
+            raise
             logger.error(f"Failed to calculate account balance: {e}")
             raise
     
