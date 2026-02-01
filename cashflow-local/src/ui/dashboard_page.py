@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 from src.database import db_manager
 from src.ui.utils import get_type_icon
-from src.ui.components.transaction_form import render_transaction_form
+from src.bills import bill_manager
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def get_kpis(account_id: int = None) -> Dict[str, Any]:
 
 def render_kpi_cards(kpis: Dict[str, Any]):
     """Render KPI metric cards."""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric(
@@ -131,6 +131,9 @@ def render_kpi_cards(kpis: Dict[str, Any]):
             delta=None,
             delta_color="normal"
         )
+    
+    with col5:
+        render_bills_summary_card()
 
 
 def render_income_expense_chart():
@@ -465,6 +468,78 @@ def render_top_merchants_chart():
         st.error("Failed to load merchant analysis")
 
 
+def render_goals_overview():
+    """
+    Render goals overview section with top 3 goals and progress tracking.
+    """
+    st.subheader("🎯 Financial Goals Overview")
+    
+    try:
+        goals = get_top_goals(limit=3)
+        
+        if not goals:
+            st.info("📋 No financial goals set yet. Visit the Goals page to create your first goal!")
+            if st.button("➕ Create Your First Goal"):
+                st.switch_page("pages/goals_page.py")  # Note: This won't work with our navigation, just showing intent
+            return
+        
+        # Display each goal in columns
+        cols = st.columns(min(len(goals), 3))
+        
+        for idx, goal in enumerate(goals):
+            with cols[idx]:
+                # Goal card with icon
+                goal_icon = get_goal_icon(goal['goal_type'])
+                st.markdown(f"#### {goal_icon} {goal['name']}")
+                
+                # Progress bar
+                progress = goal['progress_percent'] / 100
+                st.progress(progress)
+                
+                # Progress percentage
+                status_color = "🟢" if goal['is_on_track'] else "🔴"
+                st.markdown(f"{status_color} **{goal['progress_percent']:.1f}%** Complete")
+                
+                # Key metrics
+                st.metric(
+                    "Saved / Target",
+                    f"₹{goal['current_amount']:,.0f}",
+                    delta=f"₹{goal['remaining_amount']:,.0f} to go"
+                )
+                
+                st.metric(
+                    "Monthly Required",
+                    f"₹{goal['required_monthly']:,.0f}"
+                )
+                
+                # Target date
+                target_date = goal['target_date']
+                if isinstance(target_date, str):
+                    from datetime import datetime
+                    target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+                
+                days_text = f"{goal['days_remaining']} days" if goal['days_remaining'] > 0 else "Overdue!"
+                st.caption(f"Target: {target_date.strftime('%b %d, %Y')} ({days_text})")
+        
+        # Add link to goals page
+        st.markdown("---")
+        st.markdown("📊 [View All Goals & Add Contributions](#) - Visit the **🎯 Goals** page")
+        
+        # Savings recommendations
+        if goals:
+            total_monthly_required = sum(g['required_monthly'] for g in goals)
+            st.info(f"💡 **Savings Tip:** To reach all your top goals, allocate ₹{total_monthly_required:,.0f} per month")
+            
+            # Check for off-track goals
+            off_track_goals = [g for g in goals if not g['is_on_track']]
+            if off_track_goals:
+                st.warning(f"⚠️ {len(off_track_goals)} goal(s) are behind schedule. Consider increasing your savings rate!")
+    
+    except Exception as e:
+        logger.error(f"Failed to render goals overview: {e}")
+        st.error("Failed to load goals overview")
+
+
 def render_dashboard_page():
     """
     Render the main dashboard page.
@@ -476,6 +551,7 @@ def render_dashboard_page():
     - Donut chart: Spending by Category
     - Bar chart: Top Merchants/Payees
     - Budget Progress Bars with color-coded alerts
+    - Goals Overview with progress tracking
     """
     st.header("📊 Financial Dashboard")
     
@@ -525,6 +601,11 @@ def render_dashboard_page():
     
     with col2:
         render_budget_progress_bars()
+    
+    st.divider()
+    
+    # Goals Overview
+    render_goals_overview()
     
     # Refresh button
     st.divider()

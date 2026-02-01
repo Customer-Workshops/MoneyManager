@@ -126,6 +126,7 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── goals.py           # Financial goals management
 │   └── ui/
 │       ├── upload_page.py      # File upload interface
 │       ├── dashboard_page.py   # KPIs and charts
@@ -264,6 +265,13 @@ pytest tests/ -v
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 5. Track Financial Goals
+1. Navigate to **🎯 Goals**
+2. Create new savings goals with target amounts and dates
+3. Add contributions to track progress
+4. Monitor progress with visual indicators
+5. View goal analytics and projections
 
 ---
 
