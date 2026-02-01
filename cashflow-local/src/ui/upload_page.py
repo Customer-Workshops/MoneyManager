@@ -15,6 +15,7 @@ from src.deduplication import insert_transactions
 from src.categorization import category_engine
 from src.database import db_manager
 from src.ui.utils import get_type_icon
+from src.memory_monitor import memory_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,9 @@ def render_upload_page():
                         os.unlink(tmp_path)
                     except Exception as e:
                         logger.warning(f"Failed to delete temp file {tmp_path}: {e}")
+                
+                # Log memory usage after processing
+                memory_monitor.log_memory_usage(f"After processing {uploaded_file.name}")
             
             st.divider()
         
