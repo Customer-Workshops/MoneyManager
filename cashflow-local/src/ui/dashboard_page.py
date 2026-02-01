@@ -489,9 +489,9 @@ def render_upcoming_bills_widget():
                 with col2:
                     st.markdown(f"**${bill['amount']:,.2f}**")
         
-        # Link to bills page
+        # Navigation hint
         st.markdown("---")
-        st.markdown("👉 [Go to Bills page for full details](javascript:void(0))")
+        st.info("💡 Navigate to the Bills page using the sidebar to view all bill details and manage payments")
     
     except Exception as e:
         logger.error(f"Failed to render upcoming bills widget: {e}")
@@ -508,7 +508,7 @@ def render_overdue_bills_alert():
             st.error(
                 f"⚠️ **{len(overdue_bills)} Overdue Bill(s)** - "
                 f"Total: ${total_overdue:,.2f} - "
-                f"[View in Bills page](javascript:void(0))"
+                f"Navigate to the Bills page to view details"
             )
     
     except Exception as e:

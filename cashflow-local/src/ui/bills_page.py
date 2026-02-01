@@ -365,7 +365,13 @@ def render_payment_history():
         
         df = pd.DataFrame(history)
         
-        # Format dates and amounts
+        # Calculate on-time payment rate BEFORE formatting dates
+        on_time = sum(1 for h in history 
+                     if h['last_paid_date'] and h['due_date'] 
+                     and pd.to_datetime(h['last_paid_date']) <= pd.to_datetime(h['due_date']))
+        on_time_rate = (on_time / len(history) * 100) if history else 0
+        
+        # Format dates and amounts for display
         df['due_date'] = pd.to_datetime(df['due_date']).dt.strftime('%Y-%m-%d')
         df['last_paid_date'] = pd.to_datetime(df['last_paid_date']).dt.strftime('%Y-%m-%d')
         df['amount'] = df['amount'].apply(lambda x: f"${x:,.2f}")
@@ -400,11 +406,7 @@ def render_payment_history():
             )
         
         with col3:
-            # Calculate on-time payment rate
-            on_time = sum(1 for h in history 
-                         if h['last_paid_date'] and h['due_date'] 
-                         and h['last_paid_date'] <= h['due_date'])
-            on_time_rate = (on_time / len(history) * 100) if history else 0
+            # Use pre-calculated on-time payment rate
             st.metric(
                 "On-Time Payment Rate",
                 f"{on_time_rate:.1f}%"
