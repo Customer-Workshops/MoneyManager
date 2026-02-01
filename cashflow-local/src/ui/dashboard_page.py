@@ -465,7 +465,9 @@ def render_upcoming_bills_widget():
         
         # Display bills as a compact list
         for bill in upcoming_bills:
-            days_until_due = (bill['due_date'] - datetime.now().date()).days
+            # Convert to date if it's a pandas Timestamp
+            due_date = pd.to_datetime(bill['due_date']).date() if hasattr(pd.to_datetime(bill['due_date']), 'date') else bill['due_date']
+            days_until_due = (due_date - datetime.now().date()).days
             
             # Color coding based on urgency
             if days_until_due <= 1:
@@ -483,7 +485,7 @@ def render_upcoming_bills_widget():
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(f"{urgency_color} **{bill['name']}** ({bill['bill_type']})")
-                    st.caption(f"{urgency_text} - Due: {bill['due_date'].strftime('%Y-%m-%d')}")
+                    st.caption(f"{urgency_text} - Due: {due_date.strftime('%Y-%m-%d')}")
                 with col2:
                     st.markdown(f"**${bill['amount']:,.2f}**")
         

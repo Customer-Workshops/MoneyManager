@@ -176,11 +176,14 @@ def render_upcoming_overdue_bills():
         
         if upcoming:
             df_upcoming = pd.DataFrame(upcoming)
+            # Calculate days_until_due before formatting due_date
+            df_upcoming['days_until_due'] = (
+                pd.to_datetime(df_upcoming['due_date']) - pd.Timestamp(datetime.now())
+            ).dt.days
+            
+            # Now format the dates and amounts
             df_upcoming['due_date'] = pd.to_datetime(df_upcoming['due_date']).dt.strftime('%Y-%m-%d')
             df_upcoming['amount'] = df_upcoming['amount'].apply(lambda x: f"${x:,.2f}")
-            df_upcoming['days_until_due'] = (
-                pd.to_datetime(df_upcoming['due_date']) - datetime.now()
-            ).dt.days
             
             # Add urgency indicator
             df_upcoming['urgency'] = df_upcoming['days_until_due'].apply(
@@ -208,11 +211,14 @@ def render_upcoming_overdue_bills():
         
         if overdue:
             df_overdue = pd.DataFrame(overdue)
+            # Calculate days_overdue before formatting due_date
+            df_overdue['days_overdue'] = (
+                pd.Timestamp(datetime.now()) - pd.to_datetime(df_overdue['due_date'])
+            ).dt.days
+            
+            # Now format the dates and amounts
             df_overdue['due_date'] = pd.to_datetime(df_overdue['due_date']).dt.strftime('%Y-%m-%d')
             df_overdue['amount'] = df_overdue['amount'].apply(lambda x: f"${x:,.2f}")
-            df_overdue['days_overdue'] = (
-                datetime.now() - pd.to_datetime(df_overdue['due_date'])
-            ).dt.days
             
             display_cols = ['name', 'bill_type', 'amount', 'due_date', 'days_overdue']
             df_display = df_overdue[display_cols].copy()
