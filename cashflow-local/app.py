@@ -54,6 +54,37 @@ def render_sidebar():
     """Render sidebar navigation."""
     with st.sidebar:
         st.title("💰 CashFlow-Local")
+        
+        # User and workspace info
+        user = get_current_user()
+        workspace = get_current_workspace()
+        
+        if user and workspace:
+            st.markdown(f"👤 **{user['full_name']}**")
+            
+            # Workspace switcher
+            if len(user['workspaces']) > 1:
+                workspace_options = {
+                    w['workspace_name']: w['workspace_id'] 
+                    for w in user['workspaces']
+                }
+                selected_workspace = st.selectbox(
+                    "Workspace",
+                    options=list(workspace_options.keys()),
+                    index=list(workspace_options.values()).index(workspace['workspace_id'])
+                )
+                
+                if workspace_options[selected_workspace] != workspace['workspace_id']:
+                    set_current_workspace(workspace_options[selected_workspace])
+            else:
+                st.markdown(f"🏠 **{workspace['workspace_name']}**")
+            
+            st.caption(f"Role: {workspace['role']}")
+            
+            # Logout button
+            if st.button("🚪 Logout", use_container_width=True):
+                logout()
+        
         st.markdown("---")
         
         # Navigation
@@ -73,6 +104,7 @@ def render_sidebar():
         All your data stays local on your machine.
         
         **Features:**
+        - 👥 Multi-user & family support
         - 📤 Upload CSV/PDF statements
         - 🔄 Automatic deduplication
         - 🤖 Smart categorization
@@ -92,6 +124,10 @@ def main():
     """Main application entry point."""
     configure_page()
     
+    # Check authentication
+    if not require_auth():
+        return
+    
     # Render sidebar and get selected page
     selected_page = render_sidebar()
     
@@ -104,8 +140,12 @@ def main():
         render_upload_page()
     elif selected_page == "💳 Transactions":
         render_transactions_page()
+    elif selected_page == "🏦 Accounts":
+        render_accounts_page()
     elif selected_page == "💰 Budgets":
         render_budgets_page()
+    elif selected_page == "📋 Tax Reports":
+        render_tax_reports_page()
 
 
 if __name__ == "__main__":
