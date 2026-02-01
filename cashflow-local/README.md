@@ -8,6 +8,16 @@
 
 ## 🆕 What's New (February 2026)
 
+### 👥 Multi-User & Family Support (NEW!)
+- 🔐 **User Authentication:** Secure email/password login system
+- 👨‍👩‍👧‍👦 **Family Workspaces:** Create shared workspaces for families or couples
+- 🔑 **Role-Based Access:** Admin, Editor, and Viewer roles with granular permissions
+- 💼 **Shared & Personal Accounts:** Mark accounts as shared or private
+- 💰 **Shared Budgets:** Set family-wide budget limits
+- 🎯 **Shared Goals:** Track savings goals together (vacation, home down payment, etc.)
+- 📋 **Activity Log:** See who added, edited, or deleted what
+- 👥 **Member Management:** Invite family members, manage roles, and control access
+
 ### Enhanced Visual Experience
 - ✨ **Category Icons:** Transaction types now display with intuitive emoji icons (💸 Expense, 💰 Income, 🔄 Transfer)
 - 📊 **Interactive Charts:** Enhanced tooltips and hover information on all visualizations
@@ -36,6 +46,20 @@ That's it! 🎉
 ---
 
 ## ✨ Features
+
+### 👥 **Multi-User & Family Support**
+- **User Accounts:** Secure registration and login system
+- **Family Workspaces:** Create shared spaces for managing finances together
+- **Role-Based Permissions:**
+  - **Admin:** Full access, can add/remove members, manage all settings
+  - **Editor:** Add transactions, create budgets and goals
+  - **Viewer:** Read-only access to view financial data
+- **Shared & Personal Resources:**
+  - Mark accounts as shared (joint checking) or personal (my wallet)
+  - Create shared budgets accessible to all family members
+  - Set shared savings goals (family vacation, emergency fund)
+- **Activity Tracking:** Audit log shows who made what changes
+- **Member Invitations:** Easily invite family members via email
 
 ### 📤 **Universal Statement Ingestion**
 - Drag-and-drop upload for **CSV** and **PDF** bank statements
@@ -96,15 +120,22 @@ cashflow-local/
 │   └── cashflow.duckdb
 ├── src/
 │   ├── database.py        # DuckDB connection manager
+│   ├── auth.py            # Authentication service
+│   ├── workspace.py       # Workspace management
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
 │   └── ui/
-│       ├── upload_page.py      # File upload interface
-│       ├── dashboard_page.py   # KPIs and charts
+│       ├── auth_page.py         # Login/registration interface
+│       ├── upload_page.py       # File upload interface
+│       ├── dashboard_page.py    # KPIs and charts
 │       ├── transactions_page.py # Transaction table with editing
-│       └── budgets_page.py     # Budget configuration
+│       ├── budgets_page.py      # Budget configuration
+│       ├── family_page.py       # Family/workspace management
+│       └── activity_page.py     # Activity log viewer
 └── tests/
+    ├── test_auth.py            # Authentication tests
+    ├── test_workspace.py       # Workspace management tests
     ├── test_deduplication.py
     ├── test_parsers.py
     └── fixtures/
@@ -206,26 +237,54 @@ pytest tests/ -v
 
 ## 📊 Usage Guide
 
-### 1. Upload Bank Statements
+### 1. First Time Setup
+1. Open **http://localhost:8501** in your browser
+2. Create an account on the **Register** tab
+3. Enter your name, email, and password
+4. Optionally set a workspace/family name (defaults to "{Your Name}'s Family")
+5. You're automatically logged in as Admin
+
+### 2. Invite Family Members (Optional)
+1. Navigate to **👥 Family** page
+2. Go to the **Members** tab
+3. Enter family member's email and select their role
+4. They can register with that email to join your workspace
+
+### 3. Set Up Accounts
+1. Go to **👥 Family** → **Accounts** tab
+2. Create shared accounts (e.g., "Joint Checking")
+3. Create personal accounts (e.g., "My Wallet") - only visible to you
+
+### 4. Upload Bank Statements
 1. Navigate to **📤 Upload** page
 2. Drag-and-drop CSV/PDF files
 3. View processing status and duplicate statistics
 
-### 2. Review Dashboard
+### 5. Review Dashboard
 1. Navigate to **📊 Dashboard**
 2. View KPIs and visualizations
 3. Monitor budget vs. actual spending
 
-### 3. Manage Transactions
+### 6. Manage Transactions
 1. Navigate to **💳 Transactions**
 2. Use filters to find specific transactions
 3. Bulk edit categories
 4. Save edits as permanent rules
 
-### 4. Configure Budgets
+### 7. Configure Budgets
 1. Navigate to **💰 Budgets**
 2. Add category budget limits
 3. View budget compliance on dashboard
+
+### 8. Create Savings Goals
+1. Navigate to **👥 Family** → **Goals** tab
+2. Create shared or personal goals
+3. Track progress towards your targets
+
+### 9. Monitor Activity
+1. Navigate to **📋 Activity** page
+2. See who added, edited, or deleted what
+3. Keep track of all financial changes
 
 ---
 
