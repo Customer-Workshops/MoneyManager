@@ -58,7 +58,7 @@ def regex_search(text: str, pattern: str) -> bool:
         True if pattern matches text
     
     Example:
-        regex_search("Amount: $123.45", r"\$\d+\.\d+") -> True
+        regex_search("Amount: $123.45", r"\\$\\d+\\.\\d+") -> True
     """
     try:
         return bool(re.search(pattern, text, re.IGNORECASE))
