@@ -55,10 +55,13 @@ def render_goals_list():
         if key.startswith(('show_contrib_form_', 'show_edit_form_', 'show_history_')):
             # Extract goal ID from key
             try:
-                goal_id = int(key.split('_')[-1])
-                if goal_id not in current_goal_ids:
-                    keys_to_delete.append(key)
+                parts = key.split('_')
+                if len(parts) > 0 and parts[-1]:  # Ensure there is a last part and it's not empty
+                    goal_id = int(parts[-1])
+                    if goal_id not in current_goal_ids:
+                        keys_to_delete.append(key)
             except (ValueError, IndexError):
+                # Invalid key format, skip it
                 pass
     
     # Delete orphaned session state keys

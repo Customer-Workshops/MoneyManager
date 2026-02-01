@@ -144,14 +144,22 @@ class CategoryEngine:
             
             # Apply rules in order (first match wins)
             description_lower = df['description'].str.lower()
+            uncategorized_mask = df['category'] == 'Uncategorized'
             
             for rule in self.rules:
                 keyword = rule['keyword'].lower()
                 category = rule['category']
                 
                 # Update only uncategorized rows that match this keyword
-                mask = (df['category'] == 'Uncategorized') & description_lower.str.contains(keyword, na=False, regex=False)
+                mask = uncategorized_mask & description_lower.str.contains(keyword, na=False, regex=False)
                 df.loc[mask, 'category'] = category
+                
+                # Update the uncategorized mask for efficiency
+                uncategorized_mask = df['category'] == 'Uncategorized'
+                
+                # Early exit if all transactions are categorized
+                if not uncategorized_mask.any():
+                    break
             
             # Log statistics
             category_counts = df['category'].value_counts()

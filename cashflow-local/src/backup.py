@@ -65,7 +65,7 @@ class BackupManager:
                 "tables": {}
             }
             
-            # Export transactions (use fetchall for better memory efficiency than fetchdf)
+            # Export transactions (use batch fetching for memory efficiency)
             transactions_query = "SELECT * FROM transactions ORDER BY id"
             with db_manager.get_connection() as conn:
                 # Get column names
@@ -73,17 +73,22 @@ class BackupManager:
                 columns = [desc[0] for desc in result.description]
                 # Fetch rows in batches to avoid loading all at once
                 transactions = []
-                for row in result.fetchall():
-                    record = dict(zip(columns, row))
-                    # Convert dates to strings for JSON serialization
-                    if 'transaction_date' in record and record['transaction_date']:
-                        record['transaction_date'] = str(record['transaction_date'])
-                    if 'created_at' in record and record['created_at']:
-                        record['created_at'] = str(record['created_at'])
-                    transactions.append(record)
+                batch_size = 1000
+                while True:
+                    rows = result.fetchmany(batch_size)
+                    if not rows:
+                        break
+                    for row in rows:
+                        record = dict(zip(columns, row))
+                        # Convert dates to strings for JSON serialization
+                        if 'transaction_date' in record and record['transaction_date']:
+                            record['transaction_date'] = str(record['transaction_date'])
+                        if 'created_at' in record and record['created_at']:
+                            record['created_at'] = str(record['created_at'])
+                        transactions.append(record)
                 backup_data['tables']['transactions'] = transactions
             
-            # Export category_rules
+            # Export category_rules (typically small, fetchall is fine)
             rules_query = "SELECT * FROM category_rules ORDER BY id"
             with db_manager.get_connection() as conn:
                 result = conn.execute(rules_query)
@@ -96,7 +101,7 @@ class BackupManager:
                     rules.append(record)
                 backup_data['tables']['category_rules'] = rules
             
-            # Export budgets
+            # Export budgets (typically small, fetchall is fine)
             budgets_query = "SELECT * FROM budgets ORDER BY id"
             with db_manager.get_connection() as conn:
                 result = conn.execute(budgets_query)
