@@ -8,7 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 from typing import Dict, Any
 
@@ -448,6 +448,97 @@ def render_top_merchants_chart():
         st.error("Failed to load merchant analysis")
 
 
+def render_tax_savings_widget():
+    """Render tax savings widget showing YTD savings and limits."""
+    try:
+        st.markdown("### 💰 Tax Savings (FY 2026-27)")
+        
+        # Get current financial year dates (April to March)
+        current_date = datetime.now()
+        if current_date.month >= 4:
+            fy_start = date(current_date.year, 4, 1)
+            fy_end = date(current_date.year + 1, 3, 31)
+        else:
+            fy_start = date(current_date.year - 1, 4, 1)
+            fy_end = date(current_date.year, 3, 31)
+        
+        # Get tax summary
+        tax_summary = db_manager.get_tax_summary(
+            start_date=datetime.combine(fy_start, datetime.min.time()),
+            end_date=datetime.combine(fy_end, datetime.max.time())
+        )
+        
+        if not tax_summary or len(tax_summary) == 0:
+            st.info("No tax deductions recorded yet. Visit the Tax Reports page to start tagging transactions!")
+            return
+        
+        df = pd.DataFrame(tax_summary)
+        
+        # Calculate total deductions and savings
+        total_deductions = df['total_amount'].sum()
+        estimated_savings = total_deductions * 0.30  # Assuming 30% tax bracket
+        
+        # Show summary metrics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                "Total Deductions YTD",
+                f"₹{total_deductions:,.0f}",
+                help="Year-to-date tax deductible expenses"
+            )
+        
+        with col2:
+            st.metric(
+                "Estimated Tax Savings",
+                f"₹{estimated_savings:,.0f}",
+                delta=f"@30% bracket",
+                help="Potential tax savings based on 30% tax bracket"
+            )
+        
+        # Show top categories with limits
+        st.markdown("**Top Tax Categories:**")
+        
+        # Filter categories with limits and sort by utilization
+        limited_categories = df[df['annual_limit'].notna()].copy()
+        
+        if len(limited_categories) > 0:
+            limited_categories = limited_categories.sort_values('utilization_percent', ascending=False).head(3)
+            
+            for _, row in limited_categories.iterrows():
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    utilization = row['utilization_percent'] if pd.notna(row['utilization_percent']) else 0
+                    st.progress(min(utilization / 100, 1.0))
+                    
+                    # Determine color indicator
+                    if utilization >= 90:
+                        indicator = "🔴"
+                    elif utilization >= 70:
+                        indicator = "🟡"
+                    else:
+                        indicator = "🟢"
+                    
+                    st.caption(f"{indicator} {row['section']}: ₹{row['total_amount']:,.0f} / ₹{row['annual_limit']:,.0f}")
+                
+                with col2:
+                    remaining = row['annual_limit'] - row['total_amount']
+                    if remaining > 0:
+                        st.caption(f"₹{remaining:,.0f} left")
+                    else:
+                        st.caption("Maxed out")
+        
+        # Link to tax reports page
+        st.markdown("---")
+        st.markdown("📋 [View detailed tax reports →](javascript:void(0))")
+        st.caption("Go to Tax Reports page for full analysis and export options")
+    
+    except Exception as e:
+        logger.error(f"Failed to render tax savings widget: {e}")
+        st.info("Tax savings information unavailable")
+
+
 def render_dashboard_page():
     """
     Render the main dashboard page.
@@ -487,6 +578,12 @@ def render_dashboard_page():
     
     with col2:
         render_budget_progress_bars()
+    
+    st.divider()
+    
+    # Charts row 3: Tax Savings Widget
+    st.subheader("🏦 Tax Planning")
+    render_tax_savings_widget()
     
     # Refresh button
     st.divider()
