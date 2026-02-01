@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "keyword": "starbucks",
+      "category": "Coffee"
+    },
+    {
+      "keyword": "uber",
+      "category": "Transportation"
+    },
+    {
+      "keyword": "amazon",
+      "category": "Shopping"
+    },
+    {
+      "keyword": "netflix",
+      "category": "Entertainment"
+    },
+    {
+      "keyword": "grocery",
+      "category": "Groceries"
+    },
+    {
+      "keyword": "restaurant",
+      "category": "Dining"
+    }
+  ]
+}

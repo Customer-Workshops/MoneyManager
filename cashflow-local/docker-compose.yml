@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  cashflow-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cashflow-local
+    ports:
+      - "8501:8501"
+    volumes:
+      # Persist DuckDB database
+      - ./data:/app/data
+      # Mount category rules (editable at runtime)
+      - ./category_rules.json:/app/category_rules.json
+    environment:
+      - APP_NAME=${APP_NAME:-CashFlow-Local}
+      - DB_PATH=${DB_PATH:-/app/data/cashflow.duckdb}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
