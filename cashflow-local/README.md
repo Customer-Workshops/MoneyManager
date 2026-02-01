@@ -104,6 +104,25 @@ That's it! 🎉
 - Visual alerts when you exceed budgets
 - Easy-to-use budget configuration interface
 
+### 🏦 **Multi-Account Support** ⭐ NEW
+- **Track Multiple Accounts:** Manage unlimited bank accounts, credit cards, and wallets
+- **Account Types Supported:**
+  - 💳 Savings Account
+  - 💳 Checking/Current Account
+  - 💳 Credit Card
+  - 📱 Digital Wallet (PayTM, PhonePe, GPay)
+  - 💵 Cash
+- **Features:**
+  - Add/Edit/Delete accounts with custom names and types
+  - Set initial account balances
+  - Assign transactions to specific accounts during upload
+  - Account-specific filtering in dashboard and transactions page
+  - Consolidated "All Accounts" view for complete financial picture
+  - **Net Worth Calculation:** Automatic sum across all accounts
+  - **Account Balance Tracking:** Real-time balance calculation from transactions
+  - Account badges and color coding in transaction lists
+- **Account Management Page:** Dedicated interface for managing all your financial accounts
+
 ---
 
 ## 📁 Project Structure
@@ -125,6 +144,7 @@ cashflow-local/
 │   ├── parsers.py         # CSV/PDF statement parsers
 │   ├── deduplication.py   # Hash-based duplicate detection
 │   ├── categorization.py  # Rule-based categorization engine
+│   ├── goals.py           # Financial goals management
 │   └── ui/
 │       ├── auth_page.py         # Login/registration interface
 │       ├── upload_page.py       # File upload interface
@@ -257,19 +277,22 @@ pytest tests/ -v
 
 ### 4. Upload Bank Statements
 1. Navigate to **📤 Upload** page
-2. Drag-and-drop CSV/PDF files
-3. View processing status and duplicate statistics
+2. Select which account the transactions belong to
+3. Drag-and-drop CSV/PDF files
+4. View processing status and duplicate statistics
 
 ### 5. Review Dashboard
 1. Navigate to **📊 Dashboard**
-2. View KPIs and visualizations
-3. Monitor budget vs. actual spending
+2. Select an account or view "All Accounts" for consolidated view
+3. View KPIs and visualizations filtered by account
+4. Monitor budget vs. actual spending
 
 ### 6. Manage Transactions
 1. Navigate to **💳 Transactions**
-2. Use filters to find specific transactions
-3. Bulk edit categories
-4. Save edits as permanent rules
+2. Use filters (date, category, account) to find specific transactions
+3. View which account each transaction belongs to
+4. Bulk edit categories
+5. Save edits as permanent rules
 
 ### 7. Configure Budgets
 1. Navigate to **💰 Budgets**
