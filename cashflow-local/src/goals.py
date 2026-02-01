@@ -205,9 +205,14 @@ def calculate_goal_metrics(goal: Dict[str, Any]) -> Dict[str, Any]:
     current_amount = goal['current_amount']
     target_date = goal['target_date']
     
-    # Convert string date to date object if needed
+    # Convert target_date to date object if needed
     if isinstance(target_date, str):
         target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+    elif hasattr(target_date, 'date') and callable(target_date.date):  # pandas Timestamp or datetime
+        target_date = target_date.date()
+    elif not isinstance(target_date, date):
+        # Fallback - try to convert
+        target_date = date.today() + timedelta(days=365)
     
     # Progress percentage
     progress_percent = (current_amount / target_amount * 100) if target_amount > 0 else 0
@@ -230,14 +235,22 @@ def calculate_goal_metrics(goal: Dict[str, Any]) -> Dict[str, Any]:
     milestone = get_milestone(progress_percent)
     
     # Is on track?
-    days_total = (target_date - goal['created_at'].date()).days if isinstance(goal['created_at'], datetime) else 365
+    created_at = goal['created_at']
+    if isinstance(created_at, datetime):
+        created_at = created_at.date()
+    elif hasattr(created_at, 'date'):  # pandas Timestamp
+        created_at = created_at.date()
+    else:
+        created_at = date.today() - timedelta(days=365)  # Default fallback
+    
+    days_total = (target_date - created_at).days if created_at else 365
     expected_progress = ((days_total - days_remaining) / days_total * 100) if days_total > 0 else 0
     is_on_track = progress_percent >= expected_progress or progress_percent >= 100
     
     # Projected completion date
     projected_date = None
     if current_amount > 0 and remaining_amount > 0:
-        days_elapsed = (today - goal['created_at'].date()).days if isinstance(goal['created_at'], datetime) else 1
+        days_elapsed = (today - created_at).days if created_at else 1
         if days_elapsed > 0:
             daily_rate = current_amount / days_elapsed
             if daily_rate > 0:
