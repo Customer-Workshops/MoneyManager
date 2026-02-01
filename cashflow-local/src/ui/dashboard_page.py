@@ -13,26 +13,9 @@ import logging
 from typing import Dict, Any
 
 from src.database import db_manager
+from src.ui.utils import get_type_icon
 
 logger = logging.getLogger(__name__)
-
-
-def get_type_icon(transaction_type: str) -> str:
-    """
-    Get emoji icon for transaction type.
-    
-    Args:
-        transaction_type: 'Debit', 'Credit', or 'Transfer'
-    
-    Returns:
-        Emoji icon string
-    """
-    icons = {
-        'Debit': '💸',     # Expense - outgoing transactions
-        'Credit': '💰',    # Income - incoming transactions
-        'Transfer': '🔄'   # Transfer - internal transfers
-    }
-    return icons.get(transaction_type, '💳')
 
 
 def get_kpis() -> Dict[str, Any]:
@@ -230,7 +213,7 @@ def render_category_donut_chart():
             FROM transactions
             WHERE type = 'Debit'
             AND category != 'Uncategorized'
-            AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+            AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
             GROUP BY category
             ORDER BY total DESC
             LIMIT 10

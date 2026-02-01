@@ -11,26 +11,9 @@ import logging
 
 from src.database import db_manager
 from src.categorization import category_engine
+from src.ui.utils import get_type_icon
 
 logger = logging.getLogger(__name__)
-
-
-def get_type_icon(transaction_type: str) -> str:
-    """
-    Get emoji icon for transaction type.
-    
-    Args:
-        transaction_type: 'Debit', 'Credit', or 'Transfer'
-    
-    Returns:
-        Emoji icon string
-    """
-    icons = {
-        'Debit': '💸',     # Expense - outgoing transactions
-        'Credit': '💰',    # Income - incoming transactions
-        'Transfer': '🔄'   # Transfer - internal transfers
-    }
-    return icons.get(transaction_type, '💳')
 
 
 def render_transactions_page():
