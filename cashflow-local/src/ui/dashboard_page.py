@@ -14,6 +14,7 @@ from typing import Dict, Any
 
 from src.database import db_manager
 from src.ui.utils import get_type_icon
+from src.bills import bill_manager
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ def get_kpis() -> Dict[str, Any]:
 
 def render_kpi_cards(kpis: Dict[str, Any]):
     """Render KPI metric cards."""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric(
@@ -114,6 +115,9 @@ def render_kpi_cards(kpis: Dict[str, Any]):
             delta=None,
             delta_color="normal"
         )
+    
+    with col5:
+        render_bills_summary_card()
 
 
 def render_income_expense_chart():
@@ -448,18 +452,100 @@ def render_top_merchants_chart():
         st.error("Failed to load merchant analysis")
 
 
+def render_upcoming_bills_widget():
+    """Render widget showing upcoming bills in the next 7 days."""
+    try:
+        st.subheader("🔔 Upcoming Bills (Next 7 Days)")
+        
+        upcoming_bills = bill_manager.get_upcoming_bills(days_ahead=7)
+        
+        if not upcoming_bills:
+            st.success("✅ No bills due in the next 7 days!")
+            return
+        
+        # Display bills as a compact list
+        for bill in upcoming_bills:
+            days_until_due = (bill['due_date'] - datetime.now().date()).days
+            
+            # Color coding based on urgency
+            if days_until_due <= 1:
+                urgency_color = "🔴"
+                urgency_text = "Due tomorrow!" if days_until_due == 1 else "Due today!"
+            elif days_until_due <= 3:
+                urgency_color = "🟡"
+                urgency_text = f"Due in {days_until_due} days"
+            else:
+                urgency_color = "🟢"
+                urgency_text = f"Due in {days_until_due} days"
+            
+            # Display bill info
+            with st.container():
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"{urgency_color} **{bill['name']}** ({bill['bill_type']})")
+                    st.caption(f"{urgency_text} - Due: {bill['due_date'].strftime('%Y-%m-%d')}")
+                with col2:
+                    st.markdown(f"**${bill['amount']:,.2f}**")
+        
+        # Link to bills page
+        st.markdown("---")
+        st.markdown("👉 [Go to Bills page for full details](javascript:void(0))")
+    
+    except Exception as e:
+        logger.error(f"Failed to render upcoming bills widget: {e}")
+        st.error("Failed to load upcoming bills")
+
+
+def render_overdue_bills_alert():
+    """Render alert banner for overdue bills."""
+    try:
+        overdue_bills = bill_manager.get_overdue_bills()
+        
+        if overdue_bills:
+            total_overdue = sum(bill['amount'] for bill in overdue_bills)
+            st.error(
+                f"⚠️ **{len(overdue_bills)} Overdue Bill(s)** - "
+                f"Total: ${total_overdue:,.2f} - "
+                f"[View in Bills page](javascript:void(0))"
+            )
+    
+    except Exception as e:
+        logger.error(f"Failed to check overdue bills: {e}")
+
+
+def render_bills_summary_card():
+    """Render summary card showing total bills for the month."""
+    try:
+        total_bills_month = bill_manager.get_total_bills_this_month()
+        
+        st.metric(
+            "🔔 Total Bills This Month",
+            f"${total_bills_month:,.2f}",
+            delta=None
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to render bills summary: {e}")
+
+
+
 def render_dashboard_page():
     """
     Render the main dashboard page.
     
     Displays:
-    - KPI metrics (Balance, Spend, Income, Savings Rate)
+    - KPI metrics (Balance, Spend, Income, Savings Rate, Bills)
+    - Overdue bills alert
     - Line chart: Income vs Expenses (Trend Analysis)
     - Donut chart: Spending by Category
     - Bar chart: Top Merchants/Payees
     - Budget Progress Bars with color-coded alerts
+    - Upcoming Bills Widget
     """
     st.header("📊 Financial Dashboard")
+    
+    # Overdue bills alert (if any)
+    render_overdue_bills_alert()
     
     # KPIs
     kpis = get_kpis()
@@ -487,6 +573,11 @@ def render_dashboard_page():
     
     with col2:
         render_budget_progress_bars()
+    
+    st.divider()
+    
+    # Bills section
+    render_upcoming_bills_widget()
     
     # Refresh button
     st.divider()
