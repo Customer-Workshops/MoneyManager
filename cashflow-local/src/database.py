@@ -80,10 +80,58 @@ class DatabaseManager:
         Indexes:
         - idx_hash: O(1) duplicate detection
         - idx_date: Temporal queries (monthly aggregations)
+        - idx_account: Account-based filtering
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
-            # Transactions table with deduplication hash
+            # Users table
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_users_id START 1;
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_users_id'),
+                email VARCHAR UNIQUE NOT NULL,
+                password_hash VARCHAR NOT NULL,
+                full_name VARCHAR NOT NULL,
+                avatar_url VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Workspaces (families/groups)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_workspaces_id START 1;
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_workspaces_id'),
+                name VARCHAR NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # User-Workspace roles (role-based access)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_user_workspace_roles_id START 1;
+            CREATE TABLE IF NOT EXISTS user_workspace_roles (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_user_workspace_roles_id'),
+                user_id INTEGER NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, workspace_id)
+            )
+            """,
+            # Accounts table (shared or personal)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_accounts_id START 1;
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_accounts_id'),
+                workspace_id INTEGER NOT NULL,
+                name VARCHAR NOT NULL,
+                account_type VARCHAR(50) NOT NULL,
+                is_shared BOOLEAN DEFAULT TRUE,
+                owner_user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Transactions table with deduplication hash (updated with user and workspace)
             """
             CREATE SEQUENCE IF NOT EXISTS seq_transactions_id START 1;
             CREATE TABLE IF NOT EXISTS transactions (
@@ -94,7 +142,11 @@ class DatabaseManager:
                 amount DECIMAL(12, 2) NOT NULL,
                 type VARCHAR(10) NOT NULL,
                 category VARCHAR(50) DEFAULT 'Uncategorized',
+                account_id INTEGER,
                 source_file_hash VARCHAR(32) NOT NULL,
+                workspace_id INTEGER,
+                user_id INTEGER,
+                account_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -102,6 +154,8 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_hash ON transactions(hash)",
             # Index for temporal queries (monthly aggregations)
             "CREATE INDEX IF NOT EXISTS idx_date ON transactions(transaction_date)",
+            # Index for workspace queries
+            "CREATE INDEX IF NOT EXISTS idx_workspace ON transactions(workspace_id)",
             # Category rules for auto-categorization
             """
             CREATE SEQUENCE IF NOT EXISTS seq_category_rules_id START 1;
@@ -112,13 +166,32 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
-            # Budget tracking per category
+            # Budget tracking per category (updated with workspace and sharing)
             """
             CREATE SEQUENCE IF NOT EXISTS seq_budgets_id START 1;
             CREATE TABLE IF NOT EXISTS budgets (
                 id INTEGER PRIMARY KEY DEFAULT nextval('seq_budgets_id'),
-                category VARCHAR(50) UNIQUE NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                category VARCHAR(50) NOT NULL,
                 monthly_limit DECIMAL(10, 2) NOT NULL,
+                is_shared BOOLEAN DEFAULT TRUE,
+                owner_user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(workspace_id, category, owner_user_id)
+            )
+            """,
+            # Goals table (shared savings goals)
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_goals_id START 1;
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goals_id'),
+                workspace_id INTEGER NOT NULL,
+                name VARCHAR NOT NULL,
+                target_amount DECIMAL(12, 2) NOT NULL,
+                current_amount DECIMAL(12, 2) DEFAULT 0,
+                target_date DATE,
+                is_shared BOOLEAN DEFAULT TRUE,
+                created_by INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -154,6 +227,10 @@ class DatabaseManager:
             # Execute each statement individually
             for statement in schema_statements:
                 self._connection.execute(statement)
+            
+            # Create default account if none exists
+            self._create_default_account()
+            
             logger.info("Database schema initialized successfully")
             
             # Initialize predefined tax categories
@@ -631,6 +708,122 @@ class DatabaseManager:
             self._connection.close()
             self._connection = None
             logger.info("Database connection closed")
+    
+    def get_all_tags(self) -> List[Dict[str, Any]]:
+        """
+        Get all tags.
+        
+        Returns:
+            List of tag dictionaries with id, name, and color
+        """
+        try:
+            query = "SELECT id, name, color FROM tags ORDER BY name"
+            results = self.execute_query(query)
+            return [{"id": r[0], "name": r[1], "color": r[2]} for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get tags: {e}")
+            return []
+    
+    def add_tag(self, name: str, color: str = '#3498db') -> Optional[int]:
+        """
+        Add a new tag.
+        
+        Args:
+            name: Tag name
+            color: Tag color (hex format)
+        
+        Returns:
+            Tag ID if successful, None otherwise
+        """
+        try:
+            query = "INSERT INTO tags (name, color) VALUES (?, ?) RETURNING id"
+            with self.get_connection() as conn:
+                result = conn.execute(query, [name, color]).fetchone()
+                logger.info(f"Added tag: {name}")
+                return result[0] if result else None
+        except Exception as e:
+            logger.error(f"Failed to add tag: {e}")
+            return None
+    
+    def tag_transaction(self, transaction_id: int, tag_id: int) -> bool:
+        """
+        Associate a tag with a transaction.
+        
+        Args:
+            transaction_id: Transaction ID
+            tag_id: Tag ID
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            query = "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (?, ?)"
+            with self.get_connection() as conn:
+                conn.execute(query, [transaction_id, tag_id])
+                logger.info(f"Tagged transaction {transaction_id} with tag {tag_id}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to tag transaction: {e}")
+            return False
+    
+    def get_transaction_tags(self, transaction_id: int) -> List[str]:
+        """
+        Get all tags for a transaction.
+        
+        Args:
+            transaction_id: Transaction ID
+        
+        Returns:
+            List of tag names
+        """
+        try:
+            query = """
+                SELECT t.name 
+                FROM tags t
+                JOIN transaction_tags tt ON t.id = tt.tag_id
+                WHERE tt.transaction_id = ?
+            """
+            results = self.execute_query(query, (transaction_id,))
+            return [r[0] for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get transaction tags: {e}")
+            return []
+    
+    def save_search(self, name: str, filter_config: str) -> bool:
+        """
+        Save a search configuration.
+        
+        Args:
+            name: Search name
+            filter_config: JSON string of filter configuration
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            query = "INSERT INTO saved_searches (name, filter_config) VALUES (?, ?)"
+            with self.get_connection() as conn:
+                conn.execute(query, [name, filter_config])
+                logger.info(f"Saved search: {name}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save search: {e}")
+            return False
+    
+    def get_saved_searches(self) -> List[Dict[str, Any]]:
+        """
+        Get all saved searches.
+        
+        Returns:
+            List of saved search dictionaries
+        """
+        try:
+            query = "SELECT id, name, filter_config FROM saved_searches ORDER BY created_at DESC"
+            results = self.execute_query(query)
+            return [{"id": r[0], "name": r[1], "filter_config": r[2]} for r in results]
+        except Exception as e:
+            logger.error(f"Failed to get saved searches: {e}")
+            return []
 
 
 # Global instance (singleton)
