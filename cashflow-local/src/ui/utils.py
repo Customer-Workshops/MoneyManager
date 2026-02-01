@@ -2,6 +2,8 @@
 Shared utility functions for UI components.
 """
 
+from typing import List
+
 
 def get_type_icon(transaction_type: str) -> str:
     """
@@ -21,23 +23,47 @@ def get_type_icon(transaction_type: str) -> str:
     return icons.get(transaction_type, '💳')
 
 
-def get_goal_icon(goal_type: str) -> str:
+def get_categories_by_type(transaction_type: str) -> List[str]:
     """
-    Get emoji icon for goal type.
+    Get categories filtered by transaction type.
     
     Args:
-        goal_type: Goal type
+        transaction_type: '💸 Expense', '💰 Income', or '🔄 Transfer'
     
     Returns:
-        Emoji icon
+        List of category names with icons
     """
-    icons = {
-        "Emergency Fund": "🚨",
-        "Vacation/Travel": "✈️",
-        "New Car/Bike": "🚗",
-        "Home Down Payment": "🏠",
-        "Education": "🎓",
-        "Retirement": "🏖️",
-        "Custom": "🎯"
-    }
-    return icons.get(goal_type, "🎯")
+    # Define category mappings
+    expense_categories = [
+        "🍔 Food & Dining",
+        "🚗 Transport",
+        "🏠 Housing",
+        "💡 Utilities",
+        "🛒 Shopping",
+        "🎬 Entertainment",
+        "💊 Healthcare",
+        "✏️ Education",
+        "🎁 Gifts & Donations",
+        "💼 Business Expenses"
+    ]
+    
+    income_categories = [
+        "💼 Salary",
+        "💵 Freelance",
+        "📈 Investment Returns",
+        "🎁 Gifts Received",
+        "↩️ Refunds"
+    ]
+    
+    transfer_categories = [
+        "🏦 Account Transfer",
+        "💳 Credit Card Payment",
+        "💰 Savings Deposit"
+    ]
+    
+    if "Expense" in transaction_type:
+        return expense_categories
+    elif "Income" in transaction_type:
+        return income_categories
+    else:
+        return transfer_categories

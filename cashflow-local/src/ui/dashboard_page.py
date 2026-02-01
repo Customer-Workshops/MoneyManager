@@ -13,8 +13,8 @@ import logging
 from typing import Dict, Any
 
 from src.database import db_manager
-from src.ui.utils import get_type_icon, get_goal_icon
-from src.goals import get_top_goals
+from src.ui.utils import get_type_icon
+from src.ui.components.transaction_form import render_transaction_form
 
 logger = logging.getLogger(__name__)
 
@@ -526,6 +526,7 @@ def render_dashboard_page():
     Render the main dashboard page.
     
     Displays:
+    - Manual transaction entry form (Quick Add)
     - KPI metrics (Balance, Spend, Income, Savings Rate)
     - Line chart: Income vs Expenses (Trend Analysis)
     - Donut chart: Spending by Category
@@ -534,6 +535,12 @@ def render_dashboard_page():
     - Goals Overview with progress tracking
     """
     st.header("📊 Financial Dashboard")
+    
+    # Quick Add Transaction Form
+    with st.expander("➕ Quick Add Transaction", expanded=False):
+        render_transaction_form()
+    
+    st.divider()
     
     # KPIs
     kpis = get_kpis()
