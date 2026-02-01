@@ -74,10 +74,13 @@ class DatabaseManager:
         1. transactions: Core fact table with hash-based deduplication
         2. category_rules: Keyword-to-category mappings
         3. budgets: Monthly spending limits per category
+        4. goals: Financial goals tracking (savings targets)
+        5. goal_contributions: Individual contributions to goals
         
         Indexes:
         - idx_hash: O(1) duplicate detection
         - idx_date: Temporal queries (monthly aggregations)
+        - idx_goal_date: Goal temporal queries
         """
         # DuckDB doesn't support executescript, need to execute each statement separately
         schema_statements = [
@@ -119,7 +122,37 @@ class DatabaseManager:
                 monthly_limit DECIMAL(10, 2) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+            """,
+            # Financial goals tracking
             """
+            CREATE SEQUENCE IF NOT EXISTS seq_goals_id START 1;
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goals_id'),
+                name VARCHAR(100) NOT NULL,
+                goal_type VARCHAR(50) NOT NULL,
+                target_amount DECIMAL(12, 2) NOT NULL,
+                current_amount DECIMAL(12, 2) DEFAULT 0,
+                target_date DATE NOT NULL,
+                priority INTEGER DEFAULT 5,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Index for goal queries
+            "CREATE INDEX IF NOT EXISTS idx_goal_date ON goals(target_date)",
+            # Goal contributions tracking
+            """
+            CREATE SEQUENCE IF NOT EXISTS seq_goal_contributions_id START 1;
+            CREATE TABLE IF NOT EXISTS goal_contributions (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_goal_contributions_id'),
+                goal_id INTEGER NOT NULL,
+                amount DECIMAL(12, 2) NOT NULL,
+                contribution_date DATE NOT NULL,
+                notes VARCHAR(200),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            # Index for contribution queries
+            "CREATE INDEX IF NOT EXISTS idx_contribution_goal ON goal_contributions(goal_id)"
         ]
         
         try:
