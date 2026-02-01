@@ -12,6 +12,7 @@ Performance: Streaming for large files, vectorized with Pandas/Polars
 import os
 import logging
 import hashlib
+import re
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -47,6 +48,103 @@ class StatementParser(ABC):
         pass
     
     @staticmethod
+    def parse_amount(amount_str: str) -> Optional[float]:
+        """
+        Parse amount string into float, handling various formats.
+        
+        Supports:
+        - Comma-separated: "1,234.56" → 1234.56
+        - Currency symbols: "₹1,234.56" → 1234.56
+        - Debit indicators: "1234.56 Dr" → 1234.56
+        - Accounting format: "(1234.56)" → -1234.56
+        - Empty cells: "--" → None
+        - No decimals: "500" → 500.0
+        
+        Args:
+            amount_str: String representation of amount
+        
+        Returns:
+            Float value or None if invalid
+        """
+        if amount_str is None or not str(amount_str).strip():
+            return None
+        
+        amount_str = str(amount_str).strip()
+        
+        # Handle empty/placeholder values
+        if amount_str in ['--', '-', '', 'nan', 'None']:
+            return None
+        
+        # Remove currency symbols (₹, $, €, etc.)
+        amount_str = re.sub(r'[₹$€£¥]', '', amount_str)
+        
+        # Check for accounting format (parentheses for negative)
+        is_negative = False
+        if amount_str.startswith('(') and amount_str.endswith(')'):
+            is_negative = True
+            amount_str = amount_str[1:-1]
+        
+        # Remove debit/credit indicators
+        amount_str = re.sub(r'\s*(Dr|Cr|DR|CR|dr|cr)\s*$', '', amount_str)
+        
+        # Remove commas
+        amount_str = amount_str.replace(',', '')
+        
+        # Remove any remaining whitespace
+        amount_str = amount_str.strip()
+        
+        try:
+            value = float(amount_str)
+            return -abs(value) if is_negative else abs(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Could not parse amount: '{amount_str}'")
+            return None
+    
+    @staticmethod
+    def parse_date(date_str: str) -> Optional[datetime]:
+        """
+        Parse date string into datetime, supporting multiple formats.
+        
+        Supports:
+        - DD/MM/YYYY: "01/09/2025"
+        - DD-MM-YYYY: "01-09-2025"
+        - DD-MMM-YYYY: "01-Sep-2025"
+        - YYYY-MM-DD: "2025-09-01"
+        - DD MMM YYYY: "01 Sep 2025"
+        
+        Args:
+            date_str: String representation of date
+        
+        Returns:
+            datetime object or None if parsing fails
+        """
+        if date_str is None or not str(date_str).strip():
+            return None
+        
+        date_str = str(date_str).strip()
+        
+        # List of date formats to try
+        date_formats = [
+            '%d/%m/%Y',      # 01/09/2025
+            '%d-%m-%Y',      # 01-09-2025
+            '%d-%b-%Y',      # 01-Sep-2025
+            '%d %b %Y',      # 01 Sep 2025
+            '%Y-%m-%d',      # 2025-09-01
+            '%d.%m.%Y',      # 01.09.2025
+            '%d-%m-%y',      # 01-09-25
+            '%d/%m/%y',      # 01/09/25
+        ]
+        
+        for fmt in date_formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+        
+        logger.warning(f"Could not parse date: '{date_str}'")
+        return None
+    
+    @staticmethod
     def normalize_amount(debit: Optional[float], credit: Optional[float]) -> tuple:
         """
         Normalize debit/credit columns into (amount, type).
@@ -58,21 +156,9 @@ class StatementParser(ABC):
         Returns:
             Tuple of (amount: float, type: str)
         """
-        # Clean and convert debit
-        debit_clean = None
-        if debit is not None and str(debit).strip():
-            try:
-                debit_clean = float(str(debit).replace(',', '').strip())
-            except (ValueError, TypeError):
-                debit_clean = None
-        
-        # Clean and convert credit
-        credit_clean = None
-        if credit is not None and str(credit).strip():
-            try:
-                credit_clean = float(str(credit).replace(',', '').strip())
-            except (ValueError, TypeError):
-                credit_clean = None
+        # Use enhanced parse_amount for better handling
+        debit_clean = StatementParser.parse_amount(str(debit)) if debit is not None else None
+        credit_clean = StatementParser.parse_amount(str(credit)) if credit is not None else None
         
         if debit_clean is not None and debit_clean != 0:
             return abs(debit_clean), 'Debit'
@@ -152,12 +238,26 @@ class CSVParser(StatementParser):
             DataFrame with standard schema
         
         Raises:
-            Exception: If required columns are missing or parsing fails
+            FileNotFoundError: If CSV file doesn't exist
+            ValueError: If required columns are missing or parsing fails
         """
         try:
+            # Validate file exists
+            if not os.path.exists(self.file_path):
+                raise FileNotFoundError(
+                    f"CSV file not found: {self.file_path}\n"
+                    f"💡 Tip: Check the file path and ensure the file exists"
+                )
+            
             # Read CSV
             df = pd.read_csv(self.file_path)
             logger.info(f"Loaded {len(df)} rows from CSV")
+            
+            if df.empty:
+                raise ValueError(
+                    "CSV file is empty (0 rows)\n"
+                    "💡 Tip: Ensure the CSV contains transaction data"
+                )
             
             # Detect columns
             date_col = self._detect_column(df, 'date')
@@ -166,8 +266,19 @@ class CSVParser(StatementParser):
             credit_col = self._detect_column(df, 'credit')
             
             # Validate required columns
-            if not date_col or not desc_col:
-                raise ValueError("Missing required columns: date and description")
+            if not date_col:
+                raise ValueError(
+                    f"❌ Missing required column: Date\n"
+                    f"💡 CSV columns found: {', '.join(df.columns.astype(str))}\n"
+                    f"💡 Expected one of: {', '.join(self.COLUMN_MAPPINGS['date'])}"
+                )
+            
+            if not desc_col:
+                raise ValueError(
+                    f"❌ Missing required column: Description\n"
+                    f"💡 CSV columns found: {', '.join(df.columns.astype(str))}\n"
+                    f"💡 Expected one of: {', '.join(self.COLUMN_MAPPINGS['description'])}"
+                )
             
             # If only one amount column exists, treat it as debit/credit based on sign
             if not debit_col and not credit_col:
@@ -179,11 +290,17 @@ class CSVParser(StatementParser):
                     debit_col = 'debit_temp'
                     credit_col = 'credit_temp'
                 else:
-                    raise ValueError("Missing amount columns (debit/credit)")
+                    raise ValueError(
+                        f"❌ Missing amount columns (debit/credit)\n"
+                        f"💡 CSV columns found: {', '.join(df.columns.astype(str))}\n"
+                        f"💡 Expected debit or credit column"
+                    )
+            
+            logger.info(f"✅ Detected columns: Date={date_col}, Description={desc_col}, Debit={debit_col}, Credit={credit_col}")
             
             # Normalize data
             result = pd.DataFrame()
-            result['transaction_date'] = pd.to_datetime(df[date_col])
+            result['transaction_date'] = pd.to_datetime(df[date_col], errors='coerce', dayfirst=True)
             result['description'] = df[desc_col].astype(str).str.strip()
             
             # Process amounts
@@ -200,10 +317,18 @@ class CSVParser(StatementParser):
             # Default category
             result['category'] = 'Uncategorized'
             
-            # Filter out zero-amount transactions
+            # Filter out zero-amount transactions and invalid dates
+            result = result.dropna(subset=['transaction_date'])
             result = result[result['amount'] > 0].copy()
             
-            logger.info(f"Successfully parsed {len(result)} valid transactions from CSV")
+            logger.info(f"✅ Successfully parsed {len(result)} valid transactions from CSV")
+            
+            if result.empty:
+                raise ValueError(
+                    "⚠️ Parsed 0 valid transactions (all rows filtered out)\n"
+                    "💡 Tip: Check if the CSV has valid dates and non-zero amounts"
+                )
+            
             return result
         
         except Exception as e:
@@ -245,9 +370,18 @@ class PDFParser(StatementParser):
             DataFrame with standard schema
         
         Raises:
-            Exception: If PDF extraction fails
+            FileNotFoundError: If PDF file doesn't exist
+            ValueError: If no transaction table found or parsing fails
+            Exception: For other PDF extraction failures
         """
         try:
+            # Validate file exists
+            if not os.path.exists(self.file_path):
+                raise FileNotFoundError(
+                    f"PDF file not found: {self.file_path}\n"
+                    f"💡 Tip: Check the file path and ensure the file exists"
+                )
+            
             all_transactions = []
             
             # Custom extraction settings optimized for bank statements
@@ -259,6 +393,12 @@ class PDFParser(StatementParser):
             
             with pdfplumber.open(self.file_path) as pdf:
                 logger.info(f"Opened PDF with {len(pdf.pages)} pages")
+                
+                if len(pdf.pages) == 0:
+                    raise ValueError(
+                        "PDF file is empty (0 pages)\n"
+                        "💡 Tip: Ensure this is a valid bank statement PDF"
+                    )
                 
                 for page_num, page in enumerate(pdf.pages, 1):
                     logger.debug(f"Processing page {page_num}")
@@ -290,8 +430,10 @@ class PDFParser(StatementParser):
                             all_transactions.append(cleaned_row)
             
             if not all_transactions:
-                logger.warning("No data extracted from PDF")
-                return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+                raise ValueError(
+                    "❌ Failed to parse PDF: No transaction table found\n"
+                    "💡 Tip: Make sure this is a bank statement PDF with a transaction table"
+                )
             
             # Convert to DataFrame
             df = pd.DataFrame(all_transactions)
@@ -328,33 +470,43 @@ class PDFParser(StatementParser):
                     df.columns = cleaned_headers
                     
                     logger.info(f"Cleaned columns ({len(df.columns)}): {repr(cleaned_headers)}")
+                    logger.info(f"✅ Detected columns: {', '.join([c for c in cleaned_headers if c])}")
                     
                     # Drop all header rows
                     df = df[~is_header_row]
                 else:
-                    logger.warning("No header row with 'Date' found")
-                    return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+                    raise ValueError(
+                        "❌ Failed to parse PDF: No header row with 'Date' found\n"
+                        "💡 Tip: This PDF may not be in a supported bank statement format"
+                    )
             
-            # Filter to only rows with valid dates (DD/MM/YYYY format)
+            # Filter to only rows with valid dates (supports multiple formats)
             # This removes "Opening Balance", page footers, etc.
             date_col_name = df.columns[0] if len(df.columns) > 0 else None
             if date_col_name:
-                df = df[df[date_col_name].astype(str).str.match(r'\d{2}/\d{2}/\d{4}', na=False)]
+                # Support multiple date formats: DD/MM/YYYY, DD-MM-YYYY, DD-MMM-YYYY
+                date_pattern = r'(\d{2}[/-]\d{2}[/-]\d{4})|(\d{2}-\w{3}-\d{4})'
+                df = df[df[date_col_name].astype(str).str.match(date_pattern, na=False)]
                 logger.info(f"After date filtering: {len(df)} transaction rows")
             
             if df.empty:
-                logger.warning("No valid transaction rows found after filtering")
-                return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+                raise ValueError(
+                    "⚠️ Parsed 0 transactions (all rows filtered out)\n"
+                    "💡 Tip: Check if the PDF contains valid transaction dates in supported formats (DD/MM/YYYY, DD-MM-YYYY)"
+                )
             
             # Now parse the table using standard column detection
             result = self._parse_table(df)
             
             if not result.empty:
-                logger.info(f"Successfully parsed {len(result)} transactions from PDF")
+                logger.info(f"✅ Successfully parsed {len(result)} transactions from PDF")
+                logger.info(f"📊 Date range: {result['transaction_date'].min()} to {result['transaction_date'].max()}")
                 return result
             else:
-                logger.warning("Parsed data but got empty result after normalization")
-                return pd.DataFrame(columns=['transaction_date', 'description', 'amount', 'type', 'category'])
+                raise ValueError(
+                    "⚠️ Parsed data but got 0 valid transactions after normalization\n"
+                    "💡 Tip: The PDF structure may not match expected bank statement format"
+                )
         
         except Exception as e:
             logger.error(f"PDF parsing failed: {e}")
